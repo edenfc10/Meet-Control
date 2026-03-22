@@ -1,11 +1,20 @@
 import uuid
 from .base import BaseRepository
-from app.models.meeting import Meeting, MeetingType
+from app.models.meeting import Meeting
+from app.models.mador import Mador
 
 
 class MeetingRepository(BaseRepository):
-    def create_meeting(self, name: str, password: str, type: MeetingType, mador_id) -> Meeting:
-        meeting = Meeting(name=name, password=password, type=type, mador_id=mador_id)
+    def create_meeting(self, meeting_id: int, mador_id) -> Meeting | None:
+        mador = self.session.query(Mador).filter_by(UUID=mador_id).first()
+        if not mador:
+            return None
+
+        meeting = Meeting(
+            meeting_id=meeting_id,
+            mador_id=mador_id,
+            mador_owner_id=mador.creator_id,
+        )
         self.session.add(meeting)
         self.session.commit()
         self.session.refresh(meeting)

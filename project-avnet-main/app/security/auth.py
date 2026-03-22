@@ -5,7 +5,7 @@ import os
 
 from app.schema.user import UserJWTData
 
-load_dotenv()
+load_dotenv()  # Loads from current working directory or parent directories
 
 #קריאת המשתנים מהקובץ ENV
 JWT_SECRET = os.getenv("JWT_SECRET")

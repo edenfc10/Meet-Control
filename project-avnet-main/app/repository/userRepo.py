@@ -16,7 +16,7 @@ class UserRepository(BaseRepository):
         self.session.add(new_user)
 
         if mador_ids:
-            madors = self.session.query(Mador).filter(Mador.id.in_(mador_ids)).all()
+            madors = self.session.query(Mador).filter(Mador.UUID.in_(mador_ids)).all()
             new_user.madors.extend(madors)
 
         self.session.commit()

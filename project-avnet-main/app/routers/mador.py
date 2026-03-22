@@ -11,13 +11,14 @@ madorRouter = APIRouter()
 
 # TokenValidator for admin and super_admin roles
 admin_validator = TokenValidator(allowed_roles=["admin", "super_admin"])
+super_admin_validator = TokenValidator(allowed_roles=["super_admin"])
 validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 
 @madorRouter.post("/", response_model=MadorOutput)
 def create_mador(
     mador: MadorBase,
     session: Session = Depends(get_db),
-    user = Depends(admin_validator)
+    user = Depends(super_admin_validator)
 ):
     return MadorService(session=session).create_mador(mador_data=mador, creator_id=user.UUID)
 

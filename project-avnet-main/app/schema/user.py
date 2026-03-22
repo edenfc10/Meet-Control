@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import List, Optional
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from uuid import UUID
 
@@ -10,26 +10,20 @@ class UserRole(str, Enum):
     agent = "agent"
 
 
-class MeetingType(str, Enum):
-    audio = "audio"
-    video = "video"
-    blast_dial = "blast_dial"
-
-
 class MeetingBase(BaseModel):
-    name: str
-    password: str
-    type: MeetingType
+    meeting_id: int
 
 
 class MeetingOutput(MeetingBase):
-    id: str
+    id: int
+    mador_id: UUID
+    mador_owner_id: UUID
 
     model_config = {"from_attributes": True}
 
 
 class UserMinimalOutput(BaseModel):
-    UUID: str
+    UUID: UUID
     username: str
     role: UserRole
 
@@ -41,8 +35,8 @@ class MadorBase(BaseModel):
 
 
 class MadorOutput(MadorBase):
-    id: str
-    creator_id: str
+    id: UUID = Field(validation_alias="UUID")
+    creator_id: UUID
     creator: UserMinimalOutput
     members: List["UserOutput"] = []
     meetings: List[MeetingOutput] = []

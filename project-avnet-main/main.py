@@ -2,6 +2,8 @@ from fastapi import FastAPI , Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.util.init_db import create_tables
 from contextlib import asynccontextmanager
+import logging
+import sys
 from app.routers.auth import authRouter
 from app.routers.user import userRouter
 from app.routers.protect import protectRouter, get_current_user
@@ -9,6 +11,16 @@ from app.routers.mador import madorRouter
 from app.schema.user import UserOutput
 
 from app.security.superAdminTest import SuperAdminTest
+
+# Configure logging to show all levels
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    stream=sys.stdout,
+    force=True
+)
+
+logger = logging.getLogger(__name__)
 
 tags_metadata = [
     {"name": "auth", "description": "Authentication endpoints (login/signup)"},
@@ -19,11 +31,13 @@ tags_metadata = [
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    print("Start and created")
+    logger.info("Starting application...")
     create_tables()
+    logger.info("Database tables verified")
     SuperAdminTest.create_super_admin()
+    logger.info("Application startup complete\n")
     yield
-    print("Shutting down up")
+    logger.info("Shutting down application")
 
 app = FastAPI(lifespan=lifespan, openapi_tags=tags_metadata)
 
