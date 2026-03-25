@@ -42,16 +42,25 @@ export const userAPI = {
 
 // Mador API
 export const madorAPI = {
-  createMador: (madorData) => api.post('/madors/', madorData),
-  listMadors: () => api.get('/madors/'),
+  createMador: (madorData) => api.post('/madors/create', madorData),
+  listMadors: () => api.get('/madors/all'),
+  getMador: (madorId) => api.get(`/madors/${madorId}`),
   deleteMador: (madorId) => api.delete(`/madors/${madorId}`),
-  addMember: (madorId, userId) => api.post(`/madors/${madorId}/members/${userId}`),
-  removeMember: (madorId, userId) => api.delete(`/madors/${madorId}/members/${userId}`),
-  updateMemberAccessLevel: (madorId, userId, accessLevel) =>
-    api.put(`/madors/${madorId}/members/${userId}/access-level`, { access_level: accessLevel }),
-  createMeeting: (madorId, meetingData) => api.post(`/madors/${madorId}/meetings`, meetingData),
-  getMeetings: (madorId) => api.get(`/madors/${madorId}/meetings`),
-  deleteMeetingByDbId: (meetingDbId) => api.delete(`/madors/meetings/${meetingDbId}`),
+  updateMador: (madorId, madorData) => api.put(`/madors/${madorId}`, madorData),
+  addMember: (madorId, userId) => api.post(`/madors/${madorId}/add-member/${userId}`),
+  removeMember: (madorId, userId) => api.post(`/madors/${madorId}/remove-member/${userId}`),
+  addMeeting: (madorId, meetingUuid) => api.post(`/madors/${madorId}/add-meeting/${meetingUuid}`),
+};
+
+// Meeting API
+export const meetingAPI = {
+  getAllMeetings: () => api.get('/meetings/all'),
+  getMeeting: (meetingUuid) => api.get(`/meetings/${meetingUuid}`),
+  getMeetingByNumber: (number) => api.get(`/meetings/number/${number}`),
+  createMeeting: (meetingData) => api.post('/meetings/create', meetingData),
+  deleteMeeting: (meetingUuid) => api.delete(`/meetings/${meetingUuid}`),
+  updateMeeting: (meetingUuid, meetingData) => api.put(`/meetings/${meetingUuid}`, meetingData),
+  getMeetingsByMador: (madorUuid) => api.get(`/meetings/mador/${madorUuid}`),
 };
 
 // CMS API (mock for frontend integration)

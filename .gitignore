@@ -38,6 +38,7 @@ __pycache__/
 *.egg-info/
 dist/
 build/
+data1/
 
 # Logs
 logs/
@@ -58,6 +59,7 @@ docker-compose.override.yml
 Thumbs.db
 *.sublime-project
 *.sublime-workspace
+
 
 # OS-specific files
 .DS_Store

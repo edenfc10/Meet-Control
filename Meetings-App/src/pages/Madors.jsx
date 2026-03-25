@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { madorAPI, userAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 
-export default function Groups() {
+export default function Madors() {
   const { userRole, currentUser } = useAuth();
   const [groups, setGroups] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -21,20 +21,49 @@ export default function Groups() {
   const [addUserId, setAddUserId] = useState("");
   const [modalError, setModalError] = useState("");
   const [modalLoading, setModalLoading] = useState(false);
-  const [accessDrafts, setAccessDrafts] = useState({});
 
   const isSuperAdmin = userRole === "super_admin";
   const isAdmin = userRole === "admin";
   const canManage = isSuperAdmin || isAdmin;
+
+  const getGroupId = (group) => String(group?.UUID || group?.id || "");
+
+  const resolveMember = (memberRef) => {
+    if (memberRef && typeof memberRef === "object" && memberRef.UUID) {
+      return memberRef;
+    }
+
+    const memberUUID = String(memberRef || "");
+    const found = allUsers.find((u) => String(u.UUID) === memberUUID);
+    if (found) {
+      return found;
+    }
+
+    return {
+      UUID: memberUUID,
+      username: memberUUID ? memberUUID.slice(0, 8) : "Unknown",
+      role: "agent",
+      s_id: "",
+    };
+  };
+
+  const normalizeGroup = (group) => {
+    const members = (group?.members || []).map(resolveMember);
+    return {
+      ...group,
+      id: getGroupId(group),
+      members,
+    };
+  };
 
   const loadGroups = async () => {
     try {
       setLoading(true);
       setError("");
       const response = await madorAPI.listMadors();
-      setGroups(response.data || []);
+      setGroups((response.data || []).map(normalizeGroup));
     } catch (err) {
-      const message = err.response?.data?.detail || "Failed to load groups.";
+      const message = err.response?.data?.detail || "Failed to load madors.";
       setError(message);
     } finally {
       setLoading(false);
@@ -73,10 +102,10 @@ export default function Groups() {
       setCreateSuccess("");
       await madorAPI.createMador({ name: trimmed });
       setCreateName("");
-      setCreateSuccess("Group created successfully.");
+      setCreateSuccess("Mador created successfully.");
       await loadGroups();
     } catch (err) {
-      const message = err.response?.data?.detail || "Failed to create group.";
+      const message = err.response?.data?.detail || "Failed to create mador.";
       setCreateError(message);
     } finally {
       setCreateLoading(false);
@@ -86,34 +115,30 @@ export default function Groups() {
   const handleGroupDoubleClick = (group) => {
     const canManageThis = canManage;
     if (!canManageThis) return;
-    setSelectedGroup(group);
+    setSelectedGroup(normalizeGroup(group));
     setModalError("");
     setAddUserId("");
-    const initialDrafts = {};
-    (group.member_access_levels || []).forEach((row) => {
-      initialDrafts[String(row.user_id)] = row.access_level;
-    });
-    setAccessDrafts(initialDrafts);
   };
 
   const handleDeleteGroup = async (group) => {
     if (!canManage) {
-      setDeleteError("Only admin or super_admin can delete groups.");
+      setDeleteError("Only admin or super_admin can delete madors.");
       return;
     }
 
     try {
-      setDeleteLoadingId(String(group.id));
+      const groupId = getGroupId(group);
+      setDeleteLoadingId(groupId);
       setDeleteError("");
       setDeleteSuccess("");
-      await madorAPI.deleteMador(group.id);
-      setGroups((prev) => prev.filter((g) => String(g.id) !== String(group.id)));
-      if (selectedGroup && String(selectedGroup.id) === String(group.id)) {
+      await madorAPI.deleteMador(groupId);
+      setGroups((prev) => prev.filter((g) => getGroupId(g) !== groupId));
+      if (selectedGroup && getGroupId(selectedGroup) === groupId) {
         setSelectedGroup(null);
       }
       setDeleteSuccess(`Group ${group.name} deleted successfully.`);
     } catch (err) {
-      setDeleteError(err.response?.data?.detail || "Failed to delete group.");
+      setDeleteError(err.response?.data?.detail || "Failed to delete mador.");
     } finally {
       setDeleteLoadingId("");
     }
@@ -124,11 +149,16 @@ export default function Groups() {
     try {
       setModalLoading(true);
       setModalError("");
-      const res = await madorAPI.addMember(selectedGroup.id, addUserId);
-      const updated = res.data;
+      const selectedUser = allUsers.find((u) => String(u.UUID) === String(addUserId));
+      if (!selectedUser?.s_id) {
+        setModalError("Selected user is missing s_id.");
+        return;
+      }
+      const res = await madorAPI.addMember(getGroupId(selectedGroup), selectedUser.s_id);
+      const updated = normalizeGroup(res.data);
       setSelectedGroup(updated);
       setAddUserId("");
-      setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g));
+      setGroups((prev) => prev.map((g) => (getGroupId(g) === getGroupId(updated) ? updated : g)));
     } catch (err) {
       setModalError(err.response?.data?.detail || "Failed to add member.");
     } finally {
@@ -141,51 +171,20 @@ export default function Groups() {
     try {
       setModalLoading(true);
       setModalError("");
-      const res = await madorAPI.removeMember(selectedGroup.id, memberUUID);
-      const updated = res.data;
+      const member = allUsers.find((u) => String(u.UUID) === String(memberUUID));
+      if (!member?.s_id) {
+        setModalError("Member s_id not found.");
+        return;
+      }
+      const res = await madorAPI.removeMember(getGroupId(selectedGroup), member.s_id);
+      const updated = normalizeGroup(res.data);
       setSelectedGroup(updated);
-      setGroups((prev) => prev.map((g) => g.id === updated.id ? updated : g));
+      setGroups((prev) => prev.map((g) => (getGroupId(g) === getGroupId(updated) ? updated : g)));
     } catch (err) {
       setModalError(err.response?.data?.detail || "Failed to remove member.");
     } finally {
       setModalLoading(false);
     }
-  };
-
-  const handleUpdateAccessLevel = async (memberUUID) => {
-    if (!selectedGroup) return;
-    const nextLevel = accessDrafts[String(memberUUID)] || "standard";
-
-    try {
-      setModalLoading(true);
-      setModalError("");
-
-      await madorAPI.updateMemberAccessLevel(selectedGroup.id, memberUUID, nextLevel);
-      const groupsRes = await madorAPI.listMadors();
-      const refreshedGroups = groupsRes.data || [];
-      setGroups(refreshedGroups);
-
-      const refreshed = refreshedGroups.find((g) => String(g.id) === String(selectedGroup.id));
-      if (refreshed) {
-        setSelectedGroup(refreshed);
-      }
-    } catch (err) {
-      setModalError(err.response?.data?.detail || "Failed to update access level.");
-    } finally {
-      setModalLoading(false);
-    }
-  };
-
-  const getMemberAccessLevel = (memberUUID) => {
-    const fromDraft = accessDrafts[String(memberUUID)];
-    if (fromDraft) {
-      return fromDraft;
-    }
-
-    const found = (selectedGroup?.member_access_levels || []).find(
-      (row) => String(row.user_id) === String(memberUUID)
-    );
-    return found?.access_level || "standard";
   };
 
   const availableAgents = allUsers.filter(
@@ -211,7 +210,7 @@ export default function Groups() {
 
   return (
     <div className="page">
-      <h2 className="page-header">Groups</h2>
+      <h2 className="page-header">Madors</h2>
 
       {isSuperAdmin ? (
         <div className="card">
@@ -220,13 +219,13 @@ export default function Groups() {
             <input
               type="text"
               className="search-input"
-              placeholder="Enter group (mador) name"
+              placeholder="Enter mador name"
               value={createName}
               onChange={(e) => setCreateName(e.target.value)}
               maxLength={120}
             />
             <button className="search-button" type="submit" disabled={createLoading}>
-              {createLoading ? "Creating..." : "Create Group"}
+              {createLoading ? "Creating..." : "Create Mador"}
             </button>
           </form>
           {createError ? <div className="error-banner">{createError}</div> : null}
@@ -236,32 +235,32 @@ export default function Groups() {
         </div>
       ) : (
         <div className="card">
-          <div className="empty-state">Only super_admin can create a group.</div>
+          <div className="empty-state">Only super_admin can create a mador.</div>
           {deleteError ? <div className="error-banner">{deleteError}</div> : null}
           {deleteSuccess ? <div className="success-banner">{deleteSuccess}</div> : null}
         </div>
       )}
 
       <div className="card fill">
-        <h3 className="card-title">All Groups ({groups.length})</h3>
+        <h3 className="card-title">All Madors ({groups.length})</h3>
 
         {canManage && (
           <p className="info-hint">Double-click a group to manage its members.</p>
         )}
 
-        {loading ? <div className="empty-state">Loading groups...</div> : null}
+        {loading ? <div className="empty-state">Loading madors...</div> : null}
         {error ? <div className="error-banner">{error}</div> : null}
 
         {!loading && !error ? (
           <div className="meetings-list">
             {groups.length === 0 ? (
-              <div className="empty-state">No groups found.</div>
+              <div className="empty-state">No madors found.</div>
             ) : (
               groups.map((group) => {
                 const canManageThis = canManage;
                 return (
                   <div
-                    key={group.id}
+                    key={getGroupId(group)}
                     className={`meeting-row${canManageThis ? " group-clickable" : ""}`}
                     onDoubleClick={() => handleGroupDoubleClick(group)}
                     title={canManageThis ? "Double-click to manage members" : ""}
@@ -284,9 +283,9 @@ export default function Groups() {
                             e.stopPropagation();
                             handleDeleteGroup(group);
                           }}
-                          disabled={deleteLoadingId === String(group.id)}
+                          disabled={deleteLoadingId === getGroupId(group)}
                         >
-                          {deleteLoadingId === String(group.id) ? "Deleting..." : "Delete"}
+                          {deleteLoadingId === getGroupId(group) ? "Deleting..." : "Delete"}
                         </button>
                       </div>
                     )}
@@ -344,32 +343,6 @@ export default function Groups() {
                       <div className="meeting-meta">{member.role}</div>
                     </div>
                     <div className="meeting-actions">
-                      <select
-                        className="search-select"
-                        value={getMemberAccessLevel(member.UUID)}
-                        onChange={(e) =>
-                          setAccessDrafts((prev) => ({
-                            ...prev,
-                            [String(member.UUID)]: e.target.value,
-                          }))
-                        }
-                        disabled={modalLoading}
-                        style={{ minWidth: 120 }}
-                      >
-                        <option value="audio">audio</option>
-                        <option value="video">video</option>
-                        <option value="blast_dial">blast_dial</option>
-                        <option value="full">full (legacy)</option>
-                        <option value="restricted">restricted (legacy)</option>
-                        <option value="standard">standard (legacy)</option>
-                      </select>
-                      <button
-                        className="btn-secondary"
-                        onClick={() => handleUpdateAccessLevel(member.UUID)}
-                        disabled={modalLoading}
-                      >
-                        Save
-                      </button>
                       <button
                         className="btn-danger"
                         onClick={() => handleRemoveMember(member.UUID)}

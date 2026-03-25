@@ -1,6 +1,6 @@
 from enum import Enum
 from typing import List, Optional, Literal
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ConfigDict
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from uuid import UUID
 
@@ -9,110 +9,79 @@ class UserRole(str, Enum):
     admin = "admin"
     agent = "agent"
 
+    model_config = ConfigDict(use_enum_values=True)
 
-class MeetingBase(BaseModel):
-    meeting_id: int
-
-
-class MeetingOutput(MeetingBase):
-    id: int
-    mador_id: UUID
-    mador_owner_id: UUID
-
-    model_config = {"from_attributes": True}
-
-
-class UserMinimalOutput(BaseModel):
-    UUID: UUID
-    username: str
-    role: UserRole
-
-    model_config = {"from_attributes": True}
-
-
-class MadorMemberAccessOutput(BaseModel):
-    user_id: UUID
-    mador_id: UUID
-    access_level: str
-
-    model_config = {"from_attributes": True}
-
-
-class MadorMemberAccessUpdate(BaseModel):
-    access_level: Literal["audio", "video", "blast_dial", "restricted", "standard", "full"]
-
-
-class MadorBase(BaseModel):
+class MadorInCreate(BaseModel):
     name: str
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+class MadorInUpdate(BaseModel):
+    name: Optional[str] = None
+
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+class MadorOutput(BaseModel):
+    UUID: UUID
+    name: str
+    members: Optional[List[UUID]] = Field(default_factory=list)
+    meetings: Optional[List[UUID]] = Field(default_factory=list)
 
 
-class MadorOutput(MadorBase):
-    id: UUID = Field(validation_alias="UUID")
-    creator_id: UUID
-    creator: UserMinimalOutput
-    members: List[UserMinimalOutput] = []
-    member_access_levels: List[MadorMemberAccessOutput] = []
-    meetings: List[MeetingOutput] = []
-
-    model_config = {"from_attributes": True}
-
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 class UserInCreate(BaseModel):
     s_id: str
     username: str
     password: str
     role: UserRole
-    mador_ids: Optional[List[int]] = None
+    mador_ids: Optional[List[UUID]] = Field(default_factory=list)
+
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 class UserInCreateNoRole(BaseModel):
     s_id: str
     username: str
     password: str
-    mador_ids: Optional[List[int]] = None
+    mador_ids: Optional[List[UUID]] = Field(default_factory=list)
 
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+    
 class UserOutput(BaseModel):
     UUID: UUID
     s_id: str
     username: str
     role: UserRole
-    madors: List["MadorOutput"] = []
+    madors: Optional[List[UUID]] = Field(default_factory=list)
 
-    model_config = {"from_attributes": True}
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 class BoolOutput(BaseModel):
     success: bool
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-class UserInUpdate(BaseModel):
-    UUID: str
-    username: Optional[str] = None
-    password: Optional[str] = None
 
 # Update forward references
-MadorOutput.model_rebuild()
 UserOutput.model_rebuild()
-
 
 class UserInLogin(BaseModel):
     s_id: str
     password: str
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 class UserJWTData(BaseModel):
     UUID: str
     role: UserRole
     s_id: str
 
-class UserWithToken(BaseModel):
-    token: str
-    role: UserRole
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 class UserToken(BaseModel):
     token: str
+    role: UserRole
 
-class SessionOutput(BaseModel):
-    id: int
-    user_id: int
-    session_token: str
-    created_at: Optional[str] = None
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
 
-    model_config = {"from_attributes": True}
+class UserWithToken(UserOutput):
+    token: str
 
+    model_config = ConfigDict(extra="forbid", from_attributes=True)

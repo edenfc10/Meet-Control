@@ -1,3 +1,5 @@
+import os
+
 from fastapi import FastAPI , Depends
 from fastapi.middleware.cors import CORSMiddleware
 from app.util.init_db import create_tables
@@ -6,8 +8,10 @@ import logging
 import sys
 from app.routers.auth import authRouter
 from app.routers.user import userRouter
-from app.routers.protect import protectRouter, get_current_user
 from app.routers.mador import madorRouter
+from app.routers.meeting import meetingRouter
+from app.routers.protect import protectRouter, get_current_user
+
 from app.schema.user import UserOutput
 
 from app.security.superAdminTest import SuperAdminTest
@@ -57,5 +61,6 @@ app.add_middleware(
 
 app.include_router(router=authRouter, tags=["auth"], prefix="/auth")
 app.include_router(router=userRouter, tags=["users"], prefix="/users")
-app.include_router(router=madorRouter, tags=["madors"], prefix="/madors")
 app.include_router(router=protectRouter, tags=["protected"], prefix="/protected")
+app.include_router(router=madorRouter, tags=["madors"], prefix="/madors")
+app.include_router(router=meetingRouter, tags=["meetings"], prefix="/meetings")

@@ -1,6 +1,6 @@
 from ast import Dict
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Header
 from app.schema.user import UserInCreate ,UserInLogin, UserToken,UserWithToken ,UserOutput
 from app.core.database import get_db  # יוצרת חיבור לDB באמצעות הספרייה הבאה 
 from sqlalchemy.orm import Session  #ביצוע פעולות על הDB
@@ -14,6 +14,6 @@ def login(loginDetails : UserInLogin, session : Session = Depends(get_db)):
         return UserService(session=session).login(login_details=loginDetails)  # קבלת JSON והמרה לאובייקט 
     except Exception as error:
         print(error)
-        raise error
+        
     
 

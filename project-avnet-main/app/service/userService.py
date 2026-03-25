@@ -17,14 +17,6 @@ class UserService:
     def __init__(self, session):
         self.__userRepository = UserRepository(session=session)
         self.session = session
-
-    def signup(self, user_details: UserInCreate) -> str:  # פונקציה להרשמה
-        
-        hashed_password = HashHelp.get_password_hash(plain_password=user_details.password)  # הצפנת הסיסמה שהולך לDB
-        user_details.password = hashed_password
-
-        created_user = self.__userRepository.create_user(user_data=user_details)
-        return UserOutput.model_validate(created_user, from_attributes=True)
     
     def login(self, login_details: UserInLogin) -> UserToken:  # פונקציה להתחברות
         user = self.__userRepository.get_user_by_s_id(s_id=login_details.s_id)
@@ -82,12 +74,19 @@ class UserService:
         hashed_password = HashHelp.get_password_hash(plain_password=user_data.password)
         user_data.password = hashed_password
         user = self.__userRepository.create_agent_user(user_data=user_data)
-        user = UserOutput(UUID=user.UUID,s_id=user.s_id,username=user.username, role=user.role, madors=user.madors )
+        user = UserOutput(UUID=user.UUID,s_id=user.s_id,username=user.username, role=user.role, madors=[m.UUID for m in user.madors] )
         return user
     
     def create_admin_user(self, user_data: UserInCreateNoRole) -> UserOutput:
         hashed_password = HashHelp.get_password_hash(plain_password=user_data.password)
         user_data.password = hashed_password
         user = self.__userRepository.create_admin_user(user_data=user_data)
-        user = UserOutput(UUID=user.UUID,s_id=user.s_id,username=user.username, role=user.role, madors=user.madors )
+        user = UserOutput(UUID=user.UUID,s_id=user.s_id,username=user.username, role=user.role, madors=[m.UUID for m in user.madors] )
         return user
+    
+    def get_mador_meetings_by_user_uuid(self, user_uuid: str, mador_uuid: str) -> list[str]:
+        meetings = self.__userRepository.get_mador_meetings_by_user_uuid(user_uuid=user_uuid, mador_uuid=mador_uuid)
+        if meetings is not None:
+            return meetings
+        else:
+            raise HTTPException(status_code=400, detail="User or Mador is not available")

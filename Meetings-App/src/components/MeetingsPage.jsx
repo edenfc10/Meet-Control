@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import { cmsAPI, madorAPI } from "../services/api";
+import { cmsAPI, madorAPI, meetingAPI } from "../services/api";
 
 const PAGE_SIZE = 5;
 
@@ -346,9 +346,13 @@ export default function MeetingsPage({ title, data, loading = false, error = "" 
     const createInDb = async () => {
       try {
         setCreateLoading(true);
-        const payload = { meeting_id: Number(meetingIdText) };
-        const dbResponse = await madorAPI.createMeeting(newMeeting.madorId, payload);
+        const payload = {
+          m_number: meetingIdText,
+          accessLevel: inferMeetingType(),
+        };
+        const dbResponse = await meetingAPI.createMeeting(payload);
         const saved = dbResponse.data;
+        await madorAPI.addMeeting(newMeeting.madorId, saved.UUID);
 
         const createdCmsResponse = await cmsAPI.createMeeting({
           meetingId: meetingIdText,
@@ -359,8 +363,8 @@ export default function MeetingsPage({ title, data, loading = false, error = "" 
         const createdCms = createdCmsResponse.data;
 
         const local = {
-          id: `db-${saved.id}`,
-          dbId: saved.id,
+          id: `db-${saved.UUID}`,
+          dbId: saved.UUID,
           meetingId: meetingIdText,
           name: createdCms?.name || `Meeting ${meetingIdText}`,
           type: createdCms?.type || inferMeetingType(),
@@ -374,8 +378,6 @@ export default function MeetingsPage({ title, data, loading = false, error = "" 
           passwordMasked: createdCms?.passwordMasked || "-",
           cmsNode: createdCms?.cmsNode || "CMS-LOCAL-1",
           isLocal: true,
-          mador_id: saved.mador_id,
-          mador_owner_id: saved.mador_owner_id,
         };
 
         setLocalMeetings((prev) => [local, ...prev]);
@@ -466,8 +468,8 @@ export default function MeetingsPage({ title, data, loading = false, error = "" 
     if (meeting.dbId || String(meeting.id || "").startsWith("db-")) {
       try {
         setDeleteLoadingId(meeting.id);
-        const meetingDbId = meeting.dbId || Number(String(meeting.id).replace("db-", ""));
-        await madorAPI.deleteMeetingByDbId(meetingDbId);
+        const meetingDbId = String(meeting.dbId || String(meeting.id).replace("db-", ""));
+        await meetingAPI.deleteMeeting(meetingDbId);
 
         handleDeleteLocalMeeting(meeting.id);
         setDeletedDbIds((prev) => [...prev, meeting.id]);

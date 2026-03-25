@@ -18,44 +18,34 @@ def get_all_users(session: Session = Depends(get_db), user = Depends(validator))
         return UserService(session=session).get_all_users(current_user_role=user.role.value)
     except Exception as error:
         print(error)
-        raise error
-
+       
 
 @userRouter.get("/{s_id}", status_code=200, response_model=UserOutput)
 def get_user_by_s_id(s_id: str, session: Session = Depends(get_db), user = Depends(validator)):
-    try:
-        user = UserService(session=session).get_user_by_s_id(s_id=s_id)
-        return UserOutput.model_validate(user, from_attributes=True)
-    except Exception as error:
-        print(error)
-        raise error
+    user = UserService(session=session).get_user_by_s_id(s_id=s_id)
+    return UserOutput.model_validate(user, from_attributes=True)
+   
 
 @userRouter.post("/create-agent", status_code=200, response_model=UserOutput, dependencies=[Depends(allow_admins_only)])
 def create_agent_user(user_data: UserInCreateNoRole, session: Session = Depends(get_db)):
-    try:
         return UserService(session=session).create_agent_user(user_data=user_data)
-    except Exception as error:
-        print(error)
-        raise error
+
+       
         
 @userRouter.post("/create-admin", status_code=200, response_model=UserOutput, dependencies=[Depends(allow_super_admin_only)])
 def create_admin_user(user_data: UserInCreateNoRole, session: Session = Depends(get_db)):
-    try:
-        return UserService(session=session).create_admin_user(user_data=user_data)
-    except Exception as error:
-        print(error)
-    
+    return UserService(session=session).create_admin_user(user_data=user_data)
     
 
 @userRouter.delete("/{user_id}", status_code=200, response_model=BoolOutput, dependencies=[Depends(allow_admins_only)])
 def delete_user(user_id: str, session: Session = Depends(get_db), user = Depends(allow_admins_only)):
-    try:
-        success = UserService(session=session).delete_user(
-            user_id=user_id,
-            current_user_role=user.role.value,
-            current_user_s_id=user.s_id,
-        )
-        return BoolOutput(success=success)
-    except Exception as error:
-        print(error)
-        
+    success = UserService(session=session).delete_user(
+        user_id=user_id,
+        current_user_role=user.role.value,
+        current_user_s_id=user.s_id,
+    )
+    return BoolOutput(success=success)
+
+@userRouter.get("/mador/{mador_uuid}/meetings", status_code=200, response_model=list[str])
+def get_mador_meetings_by_user_uuid(mador_uuid: str, session: Session = Depends(get_db), user = Depends(validator)):
+    return UserService(session=session).get_mador_meetings_by_user_uuid(user_uuid=str(user.UUID), mador_uuid=mador_uuid)

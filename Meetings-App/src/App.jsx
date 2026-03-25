@@ -3,7 +3,7 @@ import { useAuth } from "./context/AuthContext";
 import "./App.css";
 
 // Pages
-import Groups from "./pages/Groups";
+import Madors from "./pages/Madors";
 import Users from "./pages/Users";
 import Reports from "./pages/Reports";
 import AudioMeetings from "./pages/AudioMeetings";
@@ -69,9 +69,9 @@ function MainLayout() {
             <img src={dashboardIcon} className="nav-icon" alt="Dashboard" />
             Dashboard
           </NavLink>
-          <NavLink to="/groups">
-            <img src={groupsIcon} className="nav-icon" alt="Groups" />
-            Groups
+          <NavLink to="/madors">
+            <img src={groupsIcon} className="nav-icon" alt="Madors" />
+            Madors
           </NavLink>
           <NavLink to="/users">
             <img src={profileIcon} className="nav-icon" alt="Users" />
@@ -121,7 +121,8 @@ function MainLayout() {
         <Routes>
           <Route path="/" element={<Navigate to="/dashboard" replace />} />
           <Route path="/dashboard" element={<Dashboard />} />
-          <Route path="/groups" element={<Groups />} />
+          <Route path="/madors" element={<Madors />} />
+          <Route path="/groups" element={<Navigate to="/madors" replace />} />
           <Route path="/users" element={<Users />} />
           <Route path="/reports" element={<Reports />} />
           <Route path="/audio" element={<AudioMeetings />} />

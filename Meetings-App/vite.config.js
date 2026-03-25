@@ -22,7 +22,12 @@ export default defineConfig({
         changeOrigin: true,
         secure: false,
       },
-      '/mados': {
+      '/madors': {
+        target: 'http://api:8000',
+        changeOrigin: true,
+        secure: false,
+      },
+      '/meetings': {
         target: 'http://api:8000',
         changeOrigin: true,
         secure: false,
