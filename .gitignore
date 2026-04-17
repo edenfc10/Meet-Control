@@ -1,0 +1,89 @@
+# Node.js and npm
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+package-lock.json
+yarn.lock
+.npm
+.eslintcache
+
+# Build outputs
+dist/
+build/
+coverage/
+.nyc_output/
+
+# Environment files - all variations
+.env
+.env.local
+.env.*.local
+.env.development
+.env.production
+.env.test
+
+# Python virtual environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+
+# Python cache files
+*.pyc
+*.pyo
+*.pyd
+__pycache__/
+.Python
+*.egg-info/
+dist/
+build/
+
+# Logs
+logs/
+*.log
+npm-logs
+
+# Docker
+docker-compose.override.yml
+
+# PostgreSQL data directory - לא לעלות לגיט, הנתונים שמורים ב-Docker volume
+data1/
+
+# Accidental duplicate workspace copy (keep out of git)
+project-avnet-main (7)/
+
+# IDE and Editor files
+.vscode/
+.idea/
+*.iml
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+*.sublime-project
+*.sublime-workspace
+
+
+# OS-specific files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Testing
+.coverage
+htmlcov/
+.pytest_cache/
+.mocha_output
+
+# Misc
+.cache/
+.vite/
+.turbo/
+temp/
+tmp/

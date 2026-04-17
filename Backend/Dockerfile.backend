@@ -1,0 +1,24 @@
+# ============================================================================
+# Dockerfile - Backend (FastAPI)
+# ============================================================================
+# בונה את שרת ה-API על בסיס Python 3.11.
+# מתקין את כל התלויות מ-requirements.txt.
+# מריץ את השרת עם uvicorn בפורט 8000 עם auto-reload.
+# ============================================================================
+
+
+FROM python:3.11-slim
+
+# הגדרת אזור זמן ישראל
+ENV TZ=Asia/Jerusalem
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+WORKDIR /app
+
+COPY requirements.txt .
+
+RUN pip install --no-cache-dir -r requirements.txt
+
+COPY . .
+
+CMD ["sh","-c","alembic upgrade head && uvicorn main:app --host 0.0.0.0 --port 8000 --reload"]
