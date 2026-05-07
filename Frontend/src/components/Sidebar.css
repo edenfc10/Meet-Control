@@ -1,0 +1,234 @@
+.sidebar {
+  /* Accent presets:
+     1. Mist Blue   : #8db6c9
+     2. Teal Slate  : #67b3a5
+    3. Bold Teal   : #2dd4bf
+  */
+  width: 220px;
+  --sidebar-accent: #2dd4bf;
+  --sidebar-accent-soft: rgba(45, 212, 191, 0.34);
+  --sidebar-accent-glow: rgba(45, 212, 191, 0.32);
+  --sidebar-section-tone: #9ba8bc;
+  --sidebar-section-line: rgba(155, 168, 188, 0.3);
+  background: #1a2236;
+  color: #fff;
+  height: 100vh;
+  position: fixed;
+  top: 0;
+  left: 0;
+  display: flex;
+  flex-direction: column;
+  z-index: 100;
+  box-shadow: 2px 0 12px rgba(0, 0, 0, 0.15);
+  font-family: "Segoe UI", "Roboto", "Arial", sans-serif;
+}
+
+[dir="rtl"] .sidebar {
+  left: auto;
+  right: 0;
+  box-shadow: -2px 0 12px rgba(0, 0, 0, 0.15);
+}
+
+.sidebar-header {
+  font-size: 1.38rem;
+  font-weight: 800;
+  padding: 1.4rem 1.5rem 1.2rem 1.5rem;
+  color: var(--sidebar-accent);
+  letter-spacing: 0.5px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  text-shadow: 0 1px 6px var(--sidebar-accent-glow);
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  overflow-y: auto;
+  margin-top: calc(64px + 0.8rem);
+  gap: 0.8rem;
+  padding: 0 0.6rem;
+}
+
+.sidebar-footer {
+  margin-top: auto;
+  padding: 0.2rem 0.95rem 0.76rem;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.36rem;
+}
+
+.sidebar-language-btn {
+  border: 1px solid rgba(45, 212, 191, 0.45);
+  background: rgba(34, 197, 165, 0.14);
+  color: #d8f8f2;
+  border-radius: 7px;
+  padding: 0.28rem 0.52rem;
+  font-size: 0.58rem;
+  font-weight: 600;
+  letter-spacing: 0.02em;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  cursor: pointer;
+  transition:
+    background 0.18s,
+    border-color 0.18s,
+    opacity 0.18s;
+}
+
+.sidebar-language-icon {
+  font-size: 0.64rem;
+  line-height: 1;
+}
+
+.sidebar-language-btn:hover:not(:disabled) {
+  background: rgba(34, 197, 165, 0.24);
+  border-color: rgba(45, 212, 191, 0.72);
+}
+
+.sidebar-product {
+  padding: 0;
+  color: rgba(155, 168, 188, 0.92);
+  font-size: 0.56rem;
+  font-weight: 500;
+  letter-spacing: 0.015em;
+  word-spacing: -0.04em;
+  text-transform: none;
+  line-height: 1;
+  user-select: none;
+}
+
+.sidebar-menu-section {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+}
+
+.sidebar-section-title {
+  font-size: 0.84rem;
+  font-weight: 900;
+  letter-spacing: 0.16em;
+  color: var(--sidebar-section-tone);
+  text-transform: uppercase;
+  margin: 0.5rem 0.45rem 0.25rem;
+  padding-bottom: 0.25rem;
+  border-bottom: 1px solid var(--sidebar-section-line);
+  text-shadow: none;
+}
+
+[dir="rtl"] .sidebar-section-title {
+  text-align: right;
+}
+
+.sidebar-link {
+  color: #e8edf5;
+  text-decoration: none;
+  padding: 0.65rem 1rem;
+  font-size: 1.04rem;
+  border-radius: 12px;
+  font-weight: 600;
+  transition:
+    background 0.15s,
+    color 0.15s,
+    transform 0.15s;
+  display: flex;
+  align-items: center;
+  border: 1px solid transparent;
+}
+
+.sidebar-link:hover {
+  background: rgba(34, 197, 165, 0.2);
+  color: #ffffff;
+  border-color: rgba(45, 212, 191, 0.72);
+  transform: translateX(2px);
+}
+
+[dir="rtl"] .sidebar-link:hover {
+  transform: translateX(-2px);
+}
+
+.sidebar-link.active {
+  background: linear-gradient(
+    90deg,
+    rgba(34, 211, 238, 0.38) 0%,
+    rgba(16, 185, 129, 0.4) 48%,
+    rgba(132, 204, 22, 0.34) 100%
+  );
+  color: #ffffff;
+  font-weight: 700;
+  border-color: rgba(132, 204, 22, 0.78);
+  box-shadow:
+    inset 0 0 0 1px rgba(34, 211, 238, 0.58),
+    0 5px 16px rgba(16, 185, 129, 0.34);
+}
+
+[dir="rtl"] .sidebar-footer {
+  align-items: flex-end;
+}
+
+[dir="rtl"] .sidebar-link[href="/audio-meetings"],
+[dir="rtl"] .sidebar-link[href="/video-meetings"],
+[dir="rtl"] .sidebar-link[href="/blast-dial-meetings"] {
+  font-size: 0;
+}
+
+[dir="rtl"] .sidebar-link[href="/audio-meetings"]::after,
+[dir="rtl"] .sidebar-link[href="/video-meetings"]::after,
+[dir="rtl"] .sidebar-link[href="/blast-dial-meetings"]::after {
+  font-size: 1.04rem;
+  line-height: 1.2;
+}
+
+[dir="rtl"] .sidebar-link[href="/audio-meetings"]::after {
+  content: "ועידות אודיו";
+}
+
+[dir="rtl"] .sidebar-link[href="/video-meetings"]::after {
+  content: "ועידות וידאו";
+}
+
+[dir="rtl"] .sidebar-link[href="/blast-dial-meetings"]::after {
+  content: "ועידות הזנקה";
+}
+
+@media (max-width: 700px) {
+  .sidebar {
+    width: 100vw;
+    height: auto;
+    position: relative;
+    flex-direction: row;
+    box-shadow: none;
+  }
+  .sidebar-header {
+    display: none;
+  }
+  .sidebar-nav {
+    flex-direction: row;
+    flex-wrap: wrap;
+    margin-top: 0;
+    padding: 0.3rem;
+    gap: 0.45rem;
+  }
+  .sidebar-menu-section {
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 0.2rem;
+  }
+  .sidebar-footer {
+    display: none;
+  }
+  .sidebar-product {
+    display: none;
+  }
+  .sidebar-section-title {
+    font-size: 0.7rem;
+    margin: 0 0.35rem;
+  }
+  .sidebar-link {
+    padding: 0.5rem 0.8rem;
+    font-size: 0.94rem;
+    border-radius: 8px;
+  }
+}
