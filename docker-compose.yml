@@ -1,0 +1,96 @@
+# ============================================================================
+# Meet Stack - Edge app (Frontend + Backend + DB)
+# ----------------------------------------------------------------------------
+# Meet connects to Census API for CMS operations.
+# Meet has its own local database for user/group data.
+# ============================================================================
+
+services:
+  # --- Local PostgreSQL database for Meet ---
+  db:
+    image: postgres:15
+    restart: unless-stopped
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=meet_control
+    volumes:
+      - meet-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U admin -d meet_control"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - meet-network
+
+  # --- FastAPI Backend (connects to Census API) ---
+  api:
+    image: downloads-api:latest
+    container_name: fastapi_app
+    restart: always
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"
+    environment:
+      # Census API connection
+      - CENSUS_HOST=192.168.1.30
+      - CENSUS_PORT=8001
+      - CENSUS_PROTOCOL=http
+      # Local database
+      - POSTGRES_HOST=db
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=1234
+      - POSTGRES_DB=meet_control
+      - JWT_SECRET=7bav55v-98ad-24vv-tbcc-af2884cefa6
+      - JWT_ALGORITHM=HS256
+      - SUPER_ADMIN_USERNAME=admin
+      - SUPER_ADMIN_PASSWORD=1234
+      # PRODUCTION: must stay 0 so the database is NEVER wiped on restart.
+      # Set to 1 only for a one-time fresh initialization, then back to 0.
+      - RESET_DB=0
+      - USE_ALEMBIC=1
+    healthcheck:
+      test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')\""]
+      interval: 30s
+      timeout: 10s
+      start_period: 40s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    depends_on:
+      db:
+        condition: service_healthy
+    networks:
+      - meet-network
+
+  # --- Frontend (React build served by nginx) ---
+  frontend:
+    image: downloads-frontend:latest
+    container_name: meetings_frontend
+    restart: always
+    ports:
+      - "5173:80"
+    depends_on:
+      - api
+    environment:
+      - VITE_API_URL=http://192.168.1.30:8000
+      - VITE_CMS_MODE=census
+      - VITE_CENSUS_URL=http://192.168.1.30:8001
+    logging:
+      driver: json-file
+      options:
+        max-size: "10m"
+        max-file: "5"
+    networks:
+      - meet-network
+
+networks:
+  meet-network:
+    driver: bridge
+
+volumes:
+  meet-data:

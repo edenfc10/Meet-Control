@@ -1,0 +1,303 @@
+.dashboard-container {
+  font-family: "IBM Plex Sans", "Segoe UI", Tahoma, sans-serif;
+  padding: 0;
+  color: #1f2937;
+}
+
+.dashboard-header {
+  margin-bottom: 1.4rem;
+  padding: 1.25rem 1.4rem;
+  border-radius: 14px;
+  border: 1px solid #d6deea;
+  background: linear-gradient(120deg, #ffffff, #f6f9fd);
+  box-shadow: 0 8px 20px rgba(18, 38, 58, 0.07);
+}
+
+.dashboard-header h1 {
+  font-size: clamp(1.6rem, 2.2vw, 2.1rem);
+  color: #12263a;
+  margin: 0;
+  font-family: "Source Serif 4", Georgia, serif;
+}
+
+.dashboard-header p {
+  font-size: 1rem;
+  color: #4b5563;
+  margin: 0.55rem 0 0;
+}
+
+.dashboard-page-title {
+  margin-bottom: 16px;
+}
+
+.dashboard-main {
+  display: grid;
+  grid-template-columns: repeat(12, minmax(0, 1fr));
+  gap: 1rem;
+}
+
+.dashboard-section {
+  background: #fff;
+  padding: 1.2rem 1.3rem;
+  border-radius: 12px;
+  border: 1px solid #d6deea;
+  box-shadow: 0 6px 16px rgba(18, 38, 58, 0.05);
+}
+
+.dashboard-section:nth-child(1),
+.dashboard-section:nth-child(2) {
+  grid-column: span 6;
+}
+
+.dashboard-section:nth-child(3) {
+  grid-column: span 12;
+}
+
+.dashboard-section h2 {
+  font-size: 1.2rem;
+  margin: 0 0 0.45rem;
+  color: #12263a;
+}
+
+.dashboard-section p {
+  font-size: 1rem;
+  color: #4b5563;
+  margin: 0;
+}
+
+.quick-actions {
+  list-style: none;
+  padding: 0;
+  display: flex;
+  gap: 0.75rem;
+  margin: 0.6rem 0 0;
+}
+
+.quick-actions li {
+  flex: 1;
+}
+
+.quick-actions button {
+  width: 100%;
+  padding: 0.8rem;
+  background: linear-gradient(180deg, #254766, #12263a);
+  color: #fff;
+  border: 1px solid #1a3550;
+  border-radius: 8px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition:
+    transform 0.2s,
+    filter 0.2s;
+}
+
+.quick-actions button:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+
+@media (max-width: 980px) {
+  .dashboard-section:nth-child(1),
+  .dashboard-section:nth-child(2),
+  .dashboard-section:nth-child(3) {
+    grid-column: span 12;
+  }
+
+  .quick-actions {
+    flex-direction: column;
+  }
+}
+
+/* ---- Dashboard split layout ---- */
+.dashboard-split-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  gap: 18px;
+  flex: 1;
+  min-height: 0;
+  align-items: stretch;
+}
+
+.dashboard-main-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  min-height: 0;
+}
+
+.dashboard-favorites-col {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.dashboard-favorites-card {
+  position: relative;
+  border: 1px solid #d8dde6;
+  background:
+    radial-gradient(
+      circle at 100% -10%,
+      rgba(76, 96, 122, 0.04),
+      transparent 42%
+    ),
+    linear-gradient(160deg, #fcfdff 0%, #f3f6fa 100%);
+  box-shadow: 0 10px 24px rgba(18, 38, 58, 0.08);
+  overflow-y: auto;
+}
+
+.dashboard-fav-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+  padding-bottom: 10px;
+  border-bottom: 1px dashed #d5dfeb;
+}
+
+.dashboard-fav-header .btn-ghost {
+  border: 1px solid #9fd9ee;
+  background: linear-gradient(180deg, #def6ff 0%, #c8edf9 100%);
+  color: #184d68;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(73, 157, 190, 0.12);
+}
+
+.dashboard-fav-header .btn-ghost:hover {
+  background: linear-gradient(180deg, #e9faff 0%, #d3f1fb 100%);
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.kpi-card {
+  border: 1px solid #d7dee7;
+  border-radius: 14px;
+  padding: 12px 14px;
+  background: linear-gradient(
+    140deg,
+    rgba(255, 255, 255, 0.98),
+    rgba(243, 246, 250, 0.92)
+  );
+  box-shadow: 0 8px 18px rgba(18, 38, 58, 0.06);
+}
+
+.kpi-card:nth-child(1) {
+  border-color: #d6dee7;
+  background: linear-gradient(140deg, #ffffff 0%, #f2f5f8 100%);
+}
+
+.kpi-card:nth-child(2) {
+  border-color: #d6dee7;
+  background: linear-gradient(140deg, #ffffff 0%, #f3f6f9 100%);
+}
+
+.kpi-card:nth-child(3) {
+  border-color: #d6dee7;
+  background: linear-gradient(140deg, #ffffff 0%, #f4f6f8 100%);
+}
+
+.kpi-card:nth-child(4) {
+  border-color: #d6dee7;
+  background: linear-gradient(140deg, #ffffff 0%, #f2f5f8 100%);
+}
+
+.kpi-label {
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: #4f627a;
+  font-weight: 700;
+}
+
+html[lang="he"][dir="rtl"] .kpi-card:nth-child(2) .kpi-label,
+html[lang="he"][dir="rtl"] .kpi-card:nth-child(3) .kpi-label {
+  font-size: 0;
+  letter-spacing: 0;
+}
+
+html[lang="he"][dir="rtl"] .kpi-card:nth-child(2) .kpi-label::after {
+  content: "מדורים";
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+html[lang="he"][dir="rtl"] .kpi-card:nth-child(3) .kpi-label::after {
+  content: "ועידות";
+  font-size: 12px;
+  letter-spacing: 0.06em;
+}
+
+.kpi-value {
+  margin-top: 6px;
+  font-size: clamp(1.5rem, 2.2vw, 2rem);
+  line-height: 1.05;
+  color: #11253a;
+  font-weight: 800;
+}
+
+.dashboard-main-col .card.fill {
+  min-height: 340px;
+  border-color: #d7dee6;
+  background:
+    radial-gradient(
+      circle at 100% -12%,
+      rgba(76, 96, 122, 0.04),
+      transparent 40%
+    ),
+    linear-gradient(160deg, #fdfefe 0%, #f3f6f9 100%);
+}
+
+.dashboard-main-col .meetings-list,
+.dashboard-favorites-card .meetings-list {
+  display: grid;
+  gap: 10px;
+}
+
+.dashboard-main-col .meeting-row,
+.dashboard-favorites-card .meeting-item {
+  border: 1px solid #d6e1ec;
+  border-radius: 12px;
+  padding: 10px 12px;
+}
+
+.dashboard-main-col .meeting-row {
+  background: linear-gradient(140deg, #ffffff 0%, #f5f7fa 100%);
+  border-color: #dde4ec;
+}
+
+.dashboard-favorites-card .meeting-item {
+  background: linear-gradient(140deg, #ffffff 0%, #f4f7fa 100%);
+  border-color: #dbe3eb;
+  padding: 10px 12px;
+}
+
+.dashboard-main-col .meeting-title {
+  color: #10273e;
+  font-weight: 700;
+}
+
+.dashboard-main-col .meeting-meta {
+  margin-top: 4px;
+  color: #4f6278;
+  font-size: 13px;
+}
+
+@media (max-width: 900px) {
+  .dashboard-split-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .dashboard-favorites-col {
+    width: 100%;
+  }
+
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+}
