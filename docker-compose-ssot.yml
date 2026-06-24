@@ -1,0 +1,64 @@
+# ============================================================================
+# Meet Stack - SSOT edition
+# ----------------------------------------------------------------------------
+# - No own database: the backend connects to the shared SSOT instance
+#   (census-db) over the external `ssot-net`, into the `fastapi_demo` database
+#   owned by role `meet_user` (provisioned by census initdb).
+# - Frontend (nginx static build) proxies /auth,/users,... to the backend
+#   container named `meet-control-api`, and talks to Census /api/cms directly
+#   from the browser (baked at build time into VITE_CMS_URL).
+#
+# Images are built on an internet-connected machine and `docker load`ed here:
+#   meet-api:ssot        (Backend/Dockerfile.prod)
+#   meet-frontend:ssot   (Frontend/Dockerfile.prod, VITE_* baked in)
+# ============================================================================
+
+services:
+  meet-api:
+    image: meet-api:ssot
+    container_name: meet-control-api      # nginx in the frontend proxies to this name
+    restart: always
+    command: uvicorn main:app --host 0.0.0.0 --port 8000
+    ports:
+      - "8000:8000"                       # exposed for debugging (health/Postman)
+    environment:
+      # --- SSOT database (census-db / fastapi_demo) ---
+      - POSTGRES_HOST=census-db
+      - POSTGRES_PORT=5432
+      - POSTGRES_USER=meet_user
+      - POSTGRES_PASSWORD=Eden770
+      - POSTGRES_DB=fastapi_demo
+      # --- App config ---
+      - JWT_SECRET=7bav55v-98ad-24vv-tbcc-af2884cefa6
+      - JWT_ALGORITHM=HS256
+      - SUPER_ADMIN_USERNAME=superadmin
+      - SUPER_ADMIN_PASSWORD=superadminpassword
+      - RESET_DB=0
+      - USE_ALEMBIC=0
+      - TZ=Asia/Jerusalem
+      # --- CMS (used only if the backend itself calls CMS; frontend uses Census) ---
+      - CMS_URL=https://192.168.1.24:445
+      - CMS_USERNAME=admin
+      - CMS_PASSWORD=S@p180tech
+      - CMS_VERIFY_SSL=false
+    networks:
+      - meet-network
+      - ssot-net
+
+  meet-frontend:
+    image: meet-frontend:ssot
+    container_name: meet-frontend
+    restart: always
+    ports:
+      - "5173:80"
+    depends_on:
+      - meet-api
+    networks:
+      - meet-network
+
+networks:
+  meet-network:
+    driver: bridge
+  # Shared SSOT network (created once: docker network create ssot-net)
+  ssot-net:
+    external: true

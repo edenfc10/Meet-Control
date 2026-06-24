@@ -1,0 +1,194 @@
+.logs-page {
+  padding: 24px;
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.logs-title {
+  font-size: 1.4rem;
+  font-weight: 700;
+  color: #1b2a4a;
+  margin: 0;
+}
+
+.logs-error {
+  color: #c0392b;
+  background: #fdecea;
+  border-radius: 6px;
+  padding: 8px 14px;
+  font-size: 0.9rem;
+}
+
+.logs-accordion-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.log-accordion {
+  border: 1px solid #dde3ef;
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.log-accordion-header {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px 16px;
+  background: #f0f4fa;
+  border: none;
+  cursor: pointer;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #1b2a4a;
+  text-align: left;
+  transition: background 0.15s;
+}
+
+.log-accordion-header:hover {
+  background: #dde7f7;
+}
+
+.log-accordion-header.open {
+  background: #1b2a4a;
+  color: #fff;
+}
+
+.log-accordion-arrow {
+  font-size: 0.7rem;
+}
+
+.log-accordion-count {
+  margin-left: auto;
+  font-size: 0.8rem;
+  color: #888;
+  font-weight: 400;
+}
+
+.log-accordion-body {
+  background: #0f1923;
+  padding: 16px;
+  max-height: 500px;
+  overflow: auto;
+}
+
+.logs-pre {
+  margin: 0;
+  font-family: "Courier New", monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+.log-line {
+  color: #c9d1d9;
+  padding: 1px 0;
+}
+
+.log-info {
+  color: #79c0ff;
+}
+
+.log-warning {
+  color: #e3b341;
+}
+
+.log-error {
+  color: #ff7b72;
+}
+
+.logs-loading,
+.logs-empty {
+  color: #888;
+  font-size: 0.9rem;
+  padding: 8px 0;
+}
+
+.log-tabs {
+  display: flex;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.log-tab {
+  border: none;
+  border-radius: 6px;
+  padding: 5px 14px;
+  font-size: 0.82rem;
+  font-weight: 600;
+  cursor: pointer;
+  opacity: 0.5;
+  transition: opacity 0.15s;
+}
+
+.log-tab.active {
+  opacity: 1;
+}
+
+.log-tab--info         { background: #1a3a5c; color: #79c0ff; }
+.log-tab--info.active  { background: #0d2a45; color: #79c0ff; }
+.log-tab--warning      { background: #3b2e00; color: #e3b341; }
+.log-tab--warning.active { background: #2a2000; color: #e3b341; }
+.log-tab--error        { background: #3b1010; color: #ff7b72; }
+.log-tab--error.active { background: #2a0a0a; color: #ff7b72; }
+
+/* Actions */
+.logs-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.logs-download-all-btn {
+  background: #1b2a4a;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  padding: 10px 18px;
+  font-size: 0.9rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.logs-download-all-btn:hover {
+  background: #0f1923;
+}
+
+/* Accordion header row */
+.log-accordion-header-row {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.log-accordion-header-row .log-accordion-header {
+  flex: 1;
+  text-align: left;
+}
+
+.log-download-btn {
+  background: #1b2a4a;
+  color: #fff;
+  border: none;
+  border-radius: 10px;
+  padding: 12px 16px;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+
+.log-download-btn:hover {
+  background: #0f1923;
+}
+
+.log-accordion-header-row .log-accordion-header.open + .log-download-btn,
+.log-accordion-header-row .log-accordion-header.open ~ .log-download-btn {
+  background: #fff;
+  color: #1b2a4a;
+}

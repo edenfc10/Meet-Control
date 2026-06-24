@@ -1,0 +1,271 @@
+app css:
+/* Layout */
+.app-container {
+  display: flex;
+  height: 100vh;
+  width: 100vw;
+  overflow: hidden;
+}
+
+/* Header */
+.header {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background-color: rgb(35, 51, 59);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 24px;
+  color: white;
+  z-index: 1000;
+}
+
+.header-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.app-logo {
+  height: 44px;
+  width: auto;
+}
+
+.header-title {
+  font-size: 18px;
+  font-weight: 600;
+}
+
+.profile-button {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: #3b82f6;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+/* Sidebar */
+.sidebar {
+  margin-top: 64px;
+  width: 240px;
+  background-color: white;
+  border-right: 1px solid #e5e7eb;
+  padding: 16px 12px;
+}
+
+/* Sections */
+.sidebar-section {
+  margin-bottom: 48px; /* your spacing */
+}
+
+.sidebar-section-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: #6b7280;
+  margin: 16px 12px;
+  text-transform: uppercase;
+}
+
+/* Links */
+.sidebar a {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  margin: 4px 0;
+  border-radius: 10px;
+  text-decoration: none;
+  color: #111827;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.sidebar a:hover {
+  background-color: #f1f5f9;
+}
+
+.sidebar a.active {
+  background-color: #e6edf6;
+  font-weight: 600;
+}
+
+/* Icons */
+.nav-icon {
+  width: 18px;
+  height: 18px;
+  object-fit: contain;
+  flex-shrink: 0;
+}
+
+/* Main content */
+.main-content {
+  margin-top: 64px;
+  flex: 1;
+  padding: 24px;
+  background-color: #f5f7fb;
+  overflow-y: auto;
+}
+
+/* Pages */
+.page-header {
+  font-size: 28px;
+  font-weight: 800;
+  color: #0f172a;
+}
+
+app jsx:
+import { Routes, Route, NavLink, Navigate } from "react-router-dom";
+import "./App.css";
+
+// Pages
+import Dashboard from "./pages/Dashboard";
+import Groups from "./pages/Groups";
+import Reports from "./pages/Reports";
+import AudioMeetings from "./pages/AudioMeetings";
+import VideoMeetings from "./pages/VideoMeetings";
+import Profile from "./pages/Profile";
+import Settings from "./pages/Settings";
+import Help from "./pages/Help";
+
+// Assets
+import appLogo from "./assets/applogo.svg";
+import dashboardIcon from "./assets/icons/dashboard.svg";
+import groupsIcon from "./assets/icons/groups.svg";
+import reportsIcon from "./assets/icons/reports.svg";
+import audioIcon from "./assets/icons/audio-meetings.svg";
+import videoIcon from "./assets/icons/video-meetings.svg";
+import profileIcon from "./assets/icons/profile.svg";
+import settingsIcon from "./assets/icons/settings.svg";
+import helpIcon from "./assets/icons/help.svg";
+
+export default function App() {
+  return (
+    <div className="app-container">
+      {/* Header */}
+      <header className="header">
+        <div className="header-left">
+          <img src={appLogo} alt="App Logo" className="app-logo" />
+          <div className="header-title">Meet Manager</div>
+        </div>
+        <div className="profile-button">👤</div>
+      </header>
+
+      {/* Sidebar */}
+      <aside className="sidebar">
+        <div className="sidebar-section">
+          <div className="sidebar-section-title">Job Manager</div>
+          <NavLink to="/dashboard">
+            <img src={dashboardIcon} className="nav-icon" alt="Dashboard" />
+            Dashboard
+          </NavLink>
+          <NavLink to="/groups">
+            <img src={groupsIcon} className="nav-icon" alt="Groups" />
+            Groups
+          </NavLink>
+          <NavLink to="/reports">
+            <img src={reportsIcon} className="nav-icon" alt="Reports" />
+            Reports
+          </NavLink>
+        </div>
+
+        <div className="sidebar-section">
+          <div className="sidebar-section-title">Meetings</div>
+          <NavLink to="/audio">
+            <img src={audioIcon} className="nav-icon" alt="Audio Meetings" />
+            Audio Meetings
+          </NavLink>
+          <NavLink to="/video">
+            <img src={videoIcon} className="nav-icon" alt="Video Meetings" />
+            Video Meetings
+          </NavLink>
+        </div>
+
+        <div className="sidebar-section">
+          <div className="sidebar-section-title">Preferences</div>
+          <NavLink to="/profile">
+            <img src={profileIcon} className="nav-icon" alt="Profile" />
+            Profile
+          </NavLink>
+          <NavLink to="/settings">
+            <img src={settingsIcon} className="nav-icon" alt="Settings" />
+            Settings
+          </NavLink>
+          <NavLink to="/help">
+            <img src={helpIcon} className="nav-icon" alt="Help" />
+            Help
+          </NavLink>
+        </div>
+      </aside>
+
+      {/* Main */}
+      <main className="main-content">
+        <Routes>
+          <Route path="/" element={<Navigate to="/dashboard" replace />} />
+          <Route path="/dashboard" element={<Dashboard />} />
+          <Route path="/groups" element={<Groups />} />
+          <Route path="/reports" element={<Reports />} />
+          <Route path="/audio" element={<AudioMeetings />} />
+          <Route path="/video" element={<VideoMeetings />} />
+          <Route path="/profile" element={<Profile />} />
+          <Route path="/settings" element={<Settings />} />
+          <Route path="/help" element={<Help />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
+
+index css:
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  height: 100%;
+  margin: 0;
+}
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, sans-serif;
+  background: #f5f7fb;
+  color: #0f172a;
+}
+
+main jsx:
+import React from "react";
+import ReactDOM from "react-dom/client";
+import { BrowserRouter } from "react-router-dom";
+import App from "./App";
+import "./index.css";
+
+ReactDOM.createRoot(document.getElementById("root")).render(
+  <React.StrictMode>
+    <BrowserRouter>
+      <App />
+    </BrowserRouter>
+  </React.StrictMode>
+);
+
+my project architectur:
+src
+    - assets
+        - icons
+            - all the icons used on the left tool bar
+        applogo.svg
+        react.svg
+    - pages;
+        audiomeetings.jsx
+        and so on.....
+    app.css
+    app.jsx
+    index.css
+    main.jsx
