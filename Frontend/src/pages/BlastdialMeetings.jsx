@@ -29,6 +29,7 @@ export default function BlastdialMeetings({ language = "en" }) {
           id: m.UUID,
           dbId: m.UUID,
           meetingId: String(m.m_number || ""),
+          name: m.name || "",
           accessLevel: m.accessLevel || "blast_dial",
           password: m.password || "",
           group: m.groups?.length ? m.groups[0] : "",

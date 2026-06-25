@@ -1,10 +1,9 @@
 ﻿# ============================================================================
 # Meeting Schemas (Pydantic) - סכמות קלט/פלט לפגישות
 # ============================================================================
-# ×§×•×‘×¥ ×–×” ×ž×’×“×™×¨ ××ª ×›×œ ×”×¡×›×ž×•×ª ×©×§×©×•×¨×•×ª ×œ×¤×’×™×©×•×ª:
 #   - MeetingRole: סוג הפגישה (audio/video/blast_dial)
 #   - MeetingInCreate: קלט יצירה
-#   - MeetingInUpdate: ×§×œ×˜ ×¢×“×›×•×Ÿ (×›×œ ×”×©×“×•×ª ××•×¤×¦×™×•× ×œ×™×•×ª)
+#   - MeetingInUpdate: עדכון פגישה
 #   - MeetingOutput: תשובה ללקוח
 # ============================================================================
 
@@ -14,29 +13,29 @@ from pydantic import BaseModel, Field, ConfigDict
 from uuid import UUID
 
 
-# --- MeetingRole Enum - סוג פגישה ---
-# ×ž×’×“×™×¨ ××™×–×• ×¡×•×’ ×¤×’×™×©×” × ×™×ª×Ÿ ×œ×™×¦×•×¨
+# --- MeetingRole Enum ---
 class MeetingRole(str, Enum):
-    audio = "audio"           # ×¤×’×™×©×ª ××•×“×™×•
-    video = "video"           # ×¤×’×™×©×ª ×•×™×“××•
-    blast_dial = "blast_dial" # חיוג המוני
+    audio = "audio"
+    video = "video"
+    blast_dial = "blast_dial"
 
     model_config = ConfigDict(use_enum_values=True)
 
 
 # --- MeetingInCreate - קלט ליצירת פגישה חדשה ---
 class MeetingInCreate(BaseModel):
-    m_number: str                          # מספר הפגישה (למשל "891234")
+    m_number: str
+    name: str                              # שם הפגישה
     accessLevel: MeetingRole               # סוג הפגישה
     password: Optional[str] = None         # סיסמה לפגישה (אופציונלי)
 
 
 # --- MeetingInUpdate - קלט לעדכון פגישה ---
-# ×›×œ ×”×©×“×•×ª ××•×¤×¦×™×•× ×œ×™×•×ª - ×ž××¤×©×¨ ×¢×“×›×•×Ÿ ×—×œ×§×™
 class MeetingInUpdate(BaseModel):
-    m_number: Optional[str] = None           # ×ž×¡×¤×¨ ×¤×’×™×©×” ×—×“×© (××•×¤×¦×™×•× ×œ×™)
-    accessLevel: Optional[MeetingRole] = None  # ×¡×•×’ ×—×“×© (××•×¤×¦×™×•× ×œ×™)
-    password: Optional[str] = None           # ×¡×™×¡×ž×” ×—×“×©×” (××•×¤×¦×™×•× ×œ×™)
+    m_number: Optional[str] = None
+    name: Optional[str] = None
+    accessLevel: Optional[MeetingRole] = None
+    password: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
@@ -47,15 +46,15 @@ class MeetingPasswordUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 
-# --- MeetingOutput - ×¤×œ×˜ ×¤×’×™×©×” ×ž×œ× ---
-# ×–×” ×ž×” ×©×”×œ×§×•×— ×ž×§×‘×œ ×—×–×¨×” ×›×©×©×•××œ ×¢×œ ×¤×’×™×©×”
+# --- MeetingOutput ---
 class MeetingOutput(BaseModel):
-    UUID: UUID                                                   # מזהה הפגישה
-    m_number: str                                                # מספר הפגישה
-    accessLevel: MeetingRole                                     # סוג הפגישה
-    password: Optional[str] = None                               # ×¡×™×¡×ž×ª ×”×•×•×¢×™×“×” (×× ×§×™×™×ž×ª)
+    UUID: UUID
+    m_number: str
+    name: Optional[str] = None
+    accessLevel: MeetingRole
+    password: Optional[str] = None
     groups: Optional[List[UUID]] = Field(default_factory=list)
-    participant_count: int = 0   # ×¨×©×™×ž×ª ×”×ž×“×•×¨×™× ×©×”×¤×’×™×©×” ×©×™×™×›×ª ××œ×™×”×
+    participant_count: int = 0
    
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)

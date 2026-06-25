@@ -87,6 +87,7 @@ export default function MeetingsPage({
 
   const [showCreate, setShowCreate] = useState(false);
   const [mNumber, setMNumber] = useState("");
+  const [name, setName] = useState("");
   const [password, setPassword] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -209,6 +210,7 @@ export default function MeetingsPage({
     createMeeting: isHebrew ? "צור ועידה" : "Create Meeting",
     createMeetingTypeTitle: isHebrew ? `יצירת ${title}` : `Create ${title.replace(" Meetings", "")} Meeting`,
     meetingNumberPlaceholder: isHebrew ? "מספר ועידה (למשל 891234)" : "Meeting number (e.g. 891234)",
+    meetingNamePlaceholder: isHebrew ? "שם ועידה" : "Meeting name",
     passwordOptionalPlaceholder: isHebrew ? "סיסמה (אופציונלי)" : "Password (optional)",
     creating: isHebrew ? "יוצר..." : "Creating...",
     create: isHebrew ? "צור" : "Create",
@@ -224,9 +226,13 @@ export default function MeetingsPage({
       : "Failed to delete meeting.",
     loadingMeetings: isHebrew ? "טוען ועידות..." : "Loading meetings...",
     searchByNumber: isHebrew ? "מספר ועידה" : "Meeting Number",
-    searchByGroup: isHebrew ? "מדור" : "Group",
+    searchByName: isHebrew ? "שם ועידה" : "Meeting Name",
+    searchByNameOrNumber: isHebrew ? "שם או מספר" : "Name or Number",
+    searchByGroup: isHebrew ? "שם מדור" : "Group Name",
     searchByNoGroup: isHebrew ? "ללא מדור" : "No group",
     searchPlaceholderNumber: isHebrew ? "הקלד מספר ועידה..." : "Enter meeting number...",
+    searchPlaceholderName: isHebrew ? "הקלד שם ועידה..." : "Enter meeting name...",
+    searchPlaceholderNameOrNumber: isHebrew ? "הקלד שם או מספר ועידה..." : "Enter meeting name or number...",
     searchPlaceholderGroup: isHebrew ? "הקלד שם מדור..." : "Enter group name...",
     refresh: isHebrew ? "רענון" : "Refresh",
     of: isHebrew ? "מתוך" : "of",
@@ -235,6 +241,7 @@ export default function MeetingsPage({
       ? "לא נמצאו ועידות שמתאימות לחיפוש."
       : "No meetings match your search.",
     meeting: isHebrew ? "ועידה" : "Meeting",
+    meetingNumber: isHebrew ? "מספר ועידה" : "Meeting Number",
     group: isHebrew ? "מדור" : "Group",
     noGroup: isHebrew ? "ללא מדור" : "No group",
     participants: isHebrew ? "משתתפים" : "Participants",
@@ -302,7 +309,11 @@ export default function MeetingsPage({
   const searchPlaceholder =
     searchField === "number"
       ? text.searchPlaceholderNumber
-      : text.searchPlaceholderGroup;
+      : searchField === "name"
+        ? text.searchPlaceholderName
+        : searchField === "name_or_number"
+          ? text.searchPlaceholderNameOrNumber
+          : text.searchPlaceholderGroup;
 
   useEffect(() => { setPage(1); }, [search, searchField, sortField, sortDir]);
 
@@ -312,6 +323,13 @@ export default function MeetingsPage({
     if (!query) return true;
     if (searchField === "number")
       return (m.meetingId || "").toLowerCase().includes(query);
+    if (searchField === "name")
+      return (m.name || "").toLowerCase().includes(query);
+    if (searchField === "name_or_number") {
+      const nameMatch = (m.name || "").toLowerCase().includes(query);
+      const numberMatch = (m.meetingId || "").toLowerCase().includes(query);
+      return nameMatch || numberMatch;
+    }
     if (searchField === "group") {
       const groupKey = String(m.group || "").toLowerCase();
       const groupName = (groupMap[groupKey] || "").toLowerCase();
@@ -407,11 +425,13 @@ export default function MeetingsPage({
     setCreateError("");
     try {
       await meetingAPI.createMeeting({
+        name: name.trim(),
         m_number: mNumber.trim(),
         accessLevel,
         ...(password.trim() ? { password: password.trim() } : {}),
       });
       setMNumber("");
+      setName("");
       setPassword("");
       setShowCreate(false);
       if (onRefresh) onRefresh();
@@ -498,6 +518,13 @@ export default function MeetingsPage({
             />
             <input
               type="text"
+              placeholder={text.meetingNamePlaceholder}
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              className="meetings-create-input"
+            />
+            <input
+              type="text"
               placeholder={text.passwordOptionalPlaceholder}
               value={password}
               onChange={(e) => setPassword(e.target.value)}
@@ -526,7 +553,9 @@ export default function MeetingsPage({
               value={searchField}
               onChange={(e) => { setSearchField(e.target.value); setSearch(""); }}
             >
+              <option value="name_or_number">{text.searchByNameOrNumber}</option>
               <option value="number">{text.searchByNumber}</option>
+              <option value="name">{text.searchByName}</option>
               <option value="group">{text.searchByGroup}</option>
               <option value="no_group">{text.searchByNoGroup}</option>
             </select>
@@ -564,12 +593,11 @@ export default function MeetingsPage({
                 <div key={meeting.id} className="meeting-item">
                   <div className="meeting-info">
                     <span className="meeting-id">
-                      {text.meeting} #
-                      {meeting.meetingId || meeting.dbId?.slice(0, 8)}
+                      {meeting.name || `${text.meeting} #${meeting.meetingId || meeting.dbId?.slice(0, 8)}`}
                     </span>
                     {isAdmin && (
                       <span className="meeting-uuid">
-                        UUID: {meeting.dbId || "—"}
+                        {text.meetingNumber}: {meeting.meetingId || "—"}
                       </span>
                     )}
                     <span className="meeting-group">

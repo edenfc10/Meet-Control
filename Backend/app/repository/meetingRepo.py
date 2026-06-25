@@ -30,6 +30,9 @@ class MeetingRepository(BaseRepository):
         data = meeting_data.model_dump(exclude_none=True)
         data["accessLevel"] = access_level  # קובע את סוג הפגישה לפי ה-route שקרא לפונקציה
 
+        if self.session.query(Meeting).filter(Meeting.m_number == data.get("m_number")).first():
+            raise ValueError(f"Meeting number {data.get('m_number')} already exists")
+
         new_meeting = Meeting(**data)
 
         self.session.add(new_meeting)
@@ -55,9 +58,9 @@ class MeetingRepository(BaseRepository):
 
     def user_can_access_meeting(self, user_uuid: str, meeting_uuid: str, user_role: str | None = None) -> bool:
         """
-        ×‘×•×“×§ ×”×× ×œ×ž×©×ª×ž×© ×™×© ×’×™×©×” ×œ×¤×’×™×©×”:
-        - ×”×ž×©×ª×ž×© ×¦×¨×™×š ×œ×”×™×•×ª ×—×‘×¨ ×‘×œ×¤×—×•×ª ×ž×“×•×¨ ××—×“ ×©×œ ×”×¤×’×™×©×”
-        - ×•×‘××•×ª×• ×ž×“×•×¨ ×—×™×™×‘×ª ×œ×”×™×•×ª ×œ×• ×¨×ž×ª ×’×™×©×” ×©×ž×ª××™×ž×” ×œ×¡×•×’ ×”×¤×’×™×©×”
+        בודק אם המשתמש יכול לגשת לפגישה:
+        - הפגישה חייבת להיות פתוחה למשתמש לפי קבוצות הפגישה
+        - המשתמש חייב להיות בקבוצה שמתאימה לסוג הפגישה
         """
         try:
             normalized_user_uuid = uuid.UUID(str(user_uuid))

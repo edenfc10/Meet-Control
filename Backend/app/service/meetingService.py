@@ -47,6 +47,7 @@ class MeetingService:
         return MeetingOutput(
             UUID=meeting.UUID,
             m_number=meeting.m_number,
+            name=meeting.name,
             accessLevel=meeting.accessLevel,
             password=getattr(meeting, "password", None),
             groups=[m.UUID for m in meeting.groups],

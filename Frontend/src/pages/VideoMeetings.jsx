@@ -29,6 +29,7 @@ export default function VideoMeetings({ language = "en" }) {
           id: m.UUID,
           dbId: m.UUID,
           meetingId: String(m.m_number || ""),
+          name: m.name || "",
           accessLevel: m.accessLevel || "video",
           password: m.password || "",
           group: m.groups?.length ? m.groups[0] : "",
