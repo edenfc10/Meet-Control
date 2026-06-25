@@ -46,6 +46,10 @@ class Meeting(Base):
     UUID = Column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     # מספר הפגישה (ייחודי) - למשל "891234", "771110", "551900"
     m_number = Column(String(15), unique=True, nullable=False, index=True)
+
+    # שם הפגישה
+    name = Column(String(100), nullable=True)
+    
     # סוג הפגישה - audio / video / blast_dial
     accessLevel = Column(SqlEnum(AccessLevel), nullable=False)
     # ×¡×™×¡×ž×ª ×”×•×•×¢×™×“×” (××•×¤×¦×™×•× ×œ×™) - × ×©×ž×¨×ª ×‘DB ×œ×¦×¤×™×™×” ×ž×©×•×ª×¤×ª

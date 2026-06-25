@@ -646,7 +646,7 @@ logs/
 
 - Log writes go through a dedicated async queue (`QueueListener`) — no HTTP request blocking
 - Each file auto-rotates by size (default 10 MB, configurable `backup_count`)
-- Old log directories are **not deleted** (retention disabled) — full history preserved
+- Old log directories are **deleted after retention period** (default 7 days, configurable via `retention_days` in `main.py`)
 - `LevelFilter` per handler ensures strict separation between levels
 - Timestamps use `Asia/Jerusalem` timezone
 - Initialized once in `main.py` via `LoggerManager.initialize()`

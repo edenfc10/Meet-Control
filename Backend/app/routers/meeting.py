@@ -115,16 +115,26 @@ def get_live_status(session: Session = Depends(get_db), user=Depends(allow_admin
 # יצירת פגישה חדשה — access_level נלקח מגוף הבקשה
 @meetingRouter.post("/create_meeting", status_code=200, response_model=MeetingOutput)
 def create_meeting_by_access_level(meeting_data: MeetingInCreate, session: Session = Depends(get_db), user=Depends(allow_super_admin_only)):
+    user_id = getattr(user, "s_id", "unknown")
+    user_uuid = getattr(user, "UUID", "unknown")
+    user_role = getattr(user, "role", None)
+    user_role_value = getattr(user_role, "value", user_role) or "unknown"
     try:
         LoggerManager.get_logger().info(
             "User %s:%s with role %s is creating a meeting with access level %s",
-            user.s_id, user.UUID, user.role.value, meeting_data.accessLevel,
+            user_id, user_uuid, user_role_value, meeting_data.accessLevel,
         )
         return MeetingService(session=session).create_meeting(meeting_data=meeting_data, access_level=meeting_data.accessLevel)
+    except ValueError as error:
+        LoggerManager.get_logger().warning(
+            "Failed to create meeting with access level %s for user %s:%s role=%s. Error: %s",
+            meeting_data.accessLevel, user_id, user_uuid, user_role_value, str(error),
+        )
+        raise HTTPException(status_code=400, detail=str(error))
     except Exception as error:
         LoggerManager.get_logger().exception(
             "Failed to create meeting with access level %s for user %s:%s role=%s. Error: %s",
-            meeting_data.accessLevel, user.s_id, user.UUID, user.role.value, str(error),
+            meeting_data.accessLevel, user_id, user_uuid, user_role_value, str(error),
         )
         raise HTTPException(status_code=500, detail="Internal Server Error")
 

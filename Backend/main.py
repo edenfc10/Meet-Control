@@ -60,7 +60,7 @@ async def lifespan(app: FastAPI):
     בפעולה זו נוצרת טבלת DB + super_admin. בסיום: רושמים הודעת shutdown.
     """
     # Keep a high backup_count so every 10MB rollover creates another file on the same day.
-    LoggerManager.initialize(path_prefix="./logs", size_mb=10, backup_count=1000, retention_days=0)  # אתחול מערכת הלוגים
+    LoggerManager.initialize(path_prefix="./logs", size_mb=10, backup_count=1000, retention_days=7)  # אתחול מערכת הלוגים
     create_tables()                       # יצירת/אימות טבלאות ב-DB
     SuperAdminTest.create_super_admin()    # יצירת super admin ראשוני אם חסר
     yield                                 # האפליקציה רצה כאן

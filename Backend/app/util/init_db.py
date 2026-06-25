@@ -47,6 +47,7 @@ def create_tables(retries=5, delay=3):
             # Lightweight compatibility migration for existing environments.
             with _engine.connect() as conn:
                 conn.execute(text("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS password VARCHAR(120)"))
+                conn.execute(text("ALTER TABLE meetings ADD COLUMN IF NOT EXISTS name VARCHAR(100)"))
                 conn.commit()
             print("Tables created successfully")
             break
