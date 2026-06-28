@@ -26,7 +26,6 @@ class UserRole(str, Enum):
     super_admin = "super_admin"
     admin = "admin"
     agent = "agent"
-    viewer = "viewer"
 
     model_config = ConfigDict(use_enum_values=True)  # ×©×•×ž×¨ ××ª ×”×¢×¨×š ×”×˜×§×¡×˜×•××œ×™ ×•×œ× ××ª ×”××•×‘×™×™×§×˜
 
@@ -73,6 +72,7 @@ class UserInCreate(BaseModel):
     password: str                                          # סיסמה (תוצפן לפני שמירה)
     role: UserRole                                         # תפקיד (super_admin/admin/agent)
     group_ids: Optional[List[UUID]] = Field(default_factory=list)  # ×ž×“×•×¨×™× ×œ×©×™×•×š (××•×¤×¦×™×•× ×œ×™)
+    responsible_access_level: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
@@ -84,6 +84,7 @@ class UserInCreateNoRole(BaseModel):
     password: Optional[str] = None
     role: Optional[UserRole] = None
     group_ids: Optional[List[UUID]] = Field(default_factory=list)
+    responsible_access_level: Optional[str] = None
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
@@ -95,6 +96,7 @@ class UserOutput(BaseModel):
     s_id: str
     username: str
     role: UserRole
+    responsible_access_level: Optional[str] = None
     groups: Optional[List[UUID]] = Field(default_factory=list)  # ×¨×©×™×ž×ª UUIDs ×©×œ ×”×ž×“×•×¨×™×
 
     # ×•×œ×™×“×˜×•×¨ ×ž×•×ª×× ××™×©×™×ª - ×ž×ž×™×¨ ××•×‘×™×™×§×˜×™ Group ×œ-UUID ×‘×œ×‘×“
@@ -142,6 +144,7 @@ class UserLoginOutput(BaseModel):
     access_token: str
     refresh_token: str
     role: UserRole
+    responsible_access_level: Optional[str] = None
     
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 

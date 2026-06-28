@@ -595,6 +595,47 @@
   font-weight: 500;
 }
 
+.fav-meeting-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.fav-meeting-actions .meeting-favorite-btn,
+.fav-meeting-actions .meeting-edit-btn,
+.fav-meeting-actions .meeting-delete-btn,
+.fav-meeting-actions .meeting-participants-btn {
+  font-size: 12px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  font-weight: 600;
+  min-height: 32px;
+}
+
+.fav-meeting-actions .action-btn-icon {
+  width: 14px;
+  height: 14px;
+}
+
+.fav-meeting-actions .action-btn-content {
+  gap: 5px;
+}
+
+.fav-meeting-item .meeting-edit-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 12px;
+  align-items: center;
+}
+
+.fav-meeting-item .meeting-edit-row .meetings-create-input {
+  flex: 1;
+  min-width: 120px;
+  max-width: 220px;
+}
+
 .fav-meeting-remove {
   flex-shrink: 0;
   margin-right: 12px;
@@ -615,5 +656,17 @@
 
   .kpi-grid {
     grid-template-columns: 1fr;
+  }
+
+  .fav-meeting-actions {
+    gap: 6px;
+  }
+
+  .fav-meeting-actions .meeting-favorite-btn,
+  .fav-meeting-actions .meeting-edit-btn,
+  .fav-meeting-actions .meeting-delete-btn,
+  .fav-meeting-actions .meeting-participants-btn {
+    padding: 5px 8px;
+    font-size: 11px;
   }
 }

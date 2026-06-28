@@ -17,7 +17,8 @@
 6. [CI/CD](#cicd)
 7. [Production Deployment](#production-deployment)
 8. [Roles & Permissions](#roles--permissions)
-9. [Access Level System](#access-level-system)
+9. [Admin Responsible Access Level](#admin-responsible-access-level)
+10. [Access Level System](#access-level-system)
 10. [API Reference](#api-reference)
 11. [Database Schema](#database-schema)
 12. [Frontend Pages](#frontend-pages)
@@ -308,16 +309,16 @@ After CI/CD is configured, subsequent deployments trigger automatically on push 
 
 ## Roles & Permissions
 
-The system has four roles with a strict hierarchy:
+The system has three roles with a strict hierarchy:
 
 ```
-super_admin  >  admin  >  agent  >  viewer
+super_admin  >  admin  >  agent
 ```
 
 ### super_admin
 
 - Full access to everything
-- Can create users of all roles (admin, agent, viewer)
+- Can create users of all roles (admin, agent)
 - Only role that can **create** new meetings
 - Can update meeting passwords
 - Sees all users including other super_admins
@@ -325,35 +326,43 @@ super_admin  >  admin  >  agent  >  viewer
 
 ### admin
 
-- Can create agent and viewer users
+- Can create agent users
 - Can manage groups: create, update, delete
 - Can add/remove members to/from groups with an access level
 - Can assign meetings to groups
 - Can update and delete existing meetings
 - Cannot create new meetings
 - Cannot see or manage super_admin users
+- If assigned a `responsible_access_level` (audio/video) — sees and manages **only** meetings of that type
 
 ### agent
 
 - Can see only the groups they belong to
 - Can see only meetings whose type matches their access level in that group
-- Can add `viewer` users to groups they belong to (viewers only)
 - Cannot create users, meetings, or groups
 
-### viewer
+---
 
-- Most restricted role
-- Can see users only from within their own groups
-- Can view meetings accessible to them by group membership rules
-- Can see meeting passwords when available
-- In blast dial meetings with no password, the UI shows "-"
-- Cannot create or manage anything
+## Admin Responsible Access Level
+
+Each `admin` user can optionally be assigned a `responsible_access_level` of `audio` or `video`.
+
+| Restriction | Behaviour |
+|---|---|
+| Meetings visible | Only meetings of the matching type |
+| Meetings assignable to groups | Only meetings of the matching type |
+| Members addable to groups | Only with matching access level |
+| Members removable from groups | Only with matching access level |
+
+If `responsible_access_level` is not set, the admin has full access with no type restriction.
+
+Set via the Users page when creating or editing an admin user.
 
 ---
 
 ## Access Level System
 
-When an admin adds a user (agent or viewer) to a group, they must assign one of four access levels:
+When an admin adds a user (agent) to a group, they must assign one of four access levels:
 
 | Level        | Meeting type visible     |
 | ------------ | ------------------------ |
@@ -409,11 +418,11 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 
 | Method | Endpoint                       | Auth               | Description                                              |
 | ------ | ------------------------------ | ------------------ | -------------------------------------------------------- |
-| GET    | `/users/all`                   | All roles          | Get users list (viewer sees only users from same groups) |
+| GET    | `/users/all`                   | All roles          | Get all users (super_admin sees everyone)                |
 | GET    | `/users/{s_id}`                | All roles          | Get a specific user                                      |
 | POST   | `/users/create-agent`          | admin, super_admin | Create an agent user                                     |
-| POST   | `/users/create-viewer`         | admin, super_admin | Create a viewer user                                     |
-| POST   | `/users/create-admin`          | super_admin only   | Create an admin user                                     |
+| POST   | `/users/create-admin`          | super_admin only   | Create an admin user (optionally with `responsible_access_level`) |
+| PUT    | `/users/update/{user_uuid}`    | admin, super_admin | Update user details including `responsible_access_level` |
 | DELETE | `/users/{user_id}`             | admin, super_admin | Delete a user                                            |
 | GET    | `/users/group/{uuid}/meetings` | All roles          | Get meetings for a group by access level                 |
 
@@ -425,12 +434,12 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 | ------ | ---------------------------------------------------------------- | ---------------------------------------- | ----------------------------------------------------------------------- |
 | POST   | `/groups/create`                                                 | admin, super_admin                       | Create a new group                                                      |
 | GET    | `/groups/all`                                                    | All roles                                | List all groups (agents see only their own)                             |
-| GET    | `/groups/{group_uuid}/members`                                   | All roles                                | Get members of a group (agent/viewer only if they belong to that group) |
+| GET    | `/groups/{group_uuid}/members`                                   | All roles                                | Get members of a group (agent only if they belong to that group) |
 | GET    | `/groups/{group_uuid}`                                           | admin, super_admin                       | Get a single group                                                      |
 | PUT    | `/groups/{group_uuid}`                                           | admin, super_admin                       | Update group name                                                       |
 | DELETE | `/groups/{group_uuid}`                                           | admin, super_admin                       | Delete a group                                                          |
-| POST   | `/groups/{group_uuid}/add-member/{user_uuid}?access_level=audio` | admin, super_admin, agent (viewers only) | Add user to group                                                       |
-| POST   | `/groups/{group_uuid}/remove-member/{user_uuid}`                 | admin, super_admin                       | Remove user from group                                                  |
+| POST   | `/groups/{group_uuid}/add-member/{user_uuid}?access_level=audio` | admin, super_admin, agent | Add user to group (admin restricted to their `responsible_access_level`) |
+| POST   | `/groups/{group_uuid}/remove-member/{user_uuid}`                 | admin, super_admin        | Remove user from group                                                  |
 | POST   | `/groups/{group_uuid}/add-meeting/{meeting_uuid}`                | admin, super_admin                       | Link a meeting to a group                                               |
 | POST   | `/groups/{group_uuid}/remove-meeting/{meeting_uuid}`             | admin, super_admin                       | Unlink a meeting from a group                                           |
 
@@ -497,7 +506,8 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 | s_id | String UNIQUE | Login identifier |
 | username | String | Display name |
 | password | String | Argon2 hash |
-| role | Enum | super_admin / admin / agent / viewer |
+| role | Enum | super_admin / admin / agent |
+| responsible_access_level | String nullable | audio / video — restricts admin to that meeting type only |
 
 **groups**
 | Column | Type | Notes |
@@ -608,7 +618,7 @@ The `participant_count` field is calculated in the backend `MeetingService._to_o
 
 ### Dashboard — Group Meeting Counts
 
-The Group Activity Snapshot counts are derived from `GET /meetings/all_meetings` — which returns only meetings the current user is authorized to see — rather than from the raw group relationship. This ensures `agent` and `viewer` roles see accurate counts based on their permissions.
+The Group Activity Snapshot counts are derived from `GET /meetings/all_meetings` — which returns only meetings the current user is authorized to see — rather than from the raw group relationship. This ensures `agent` roles, and `admin` roles with `responsible_access_level`, see accurate counts based on their permissions.
 
 ---
 

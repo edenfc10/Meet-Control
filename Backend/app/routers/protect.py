@@ -25,7 +25,7 @@ from fastapi import APIRouter
 from app.security.TokenValidator import TokenValidator
 from app.models.user import User
 
-validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent", "viewer"])
+validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 
 protectRouter = APIRouter()
 

@@ -30,6 +30,7 @@ const normalizeUser = (payload) => {
   return {
     s_id: user?.s_id || "",
     role,
+    responsible_access_level: user?.responsible_access_level || "",
   };
 };
 

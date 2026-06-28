@@ -8,8 +8,8 @@ import "./Groups.css";
 
 const ACCESS_LEVELS = ["audio", "video", "blast_dial"];
 
-// היררכיית roles: super_admin > admin > agent > viewer
-const ROLE_HIERARCHY = { super_admin: 4, admin: 3, agent: 2, viewer: 1 };
+// היררכיית roles: super_admin > admin > agent
+const ROLE_HIERARCHY = { super_admin: 4, admin: 3, agent: 2 };
 
 export default function Groups({ language = "en" }) {
   const { currentUser } = useAuth();
@@ -19,9 +19,15 @@ export default function Groups({ language = "en" }) {
   const myLevel = ROLE_HIERARCHY[role] || 0;
   const isAdmin = role === "admin" || role === "super_admin";
   const isAgent = role === "agent";
-  const canReadAllUsers = role !== "viewer";
-  // viewer לא יכול לנהל חברים בכלל
+  const canReadAllUsers = myLevel >= 2;
   const canManageMembers = myLevel >= 2;
+
+  const availableAccessLevels = useMemo(() => {
+    if (role === "admin" && currentUser?.responsible_access_level) {
+      return [currentUser.responsible_access_level];
+    }
+    return ACCESS_LEVELS;
+  }, [role, currentUser?.responsible_access_level]);
 
   const accessLevelLabels = {
     audio: isHebrew ? "ועידות אודיו" : "audio",
@@ -130,8 +136,8 @@ export default function Groups({ language = "en" }) {
       : "Are you sure you want to remove user",
     removingUser: isHebrew ? "מסיר..." : "Removing...",
     addMember: isHebrew ? "הוספת חבר" : "Add Member",
-    viewersOnly: isHebrew ? " (צפיינים בלבד)" : " (Viewers only)",
-    agentViewerOnly: isHebrew ? " (Agent ו-Viewer בלבד)" : " (Agent & Viewer)",
+    agentsOnly: isHebrew ? " (Agents בלבד)" : " (Agents only)",
+    agentOnly: isHebrew ? " (Agent בלבד)" : " (Agents only)",
     noUsersToAdd: isHebrew
       ? "אין משתמשים זמינים להוספה."
       : "No users available to add.",
@@ -263,9 +269,9 @@ export default function Groups({ language = "en" }) {
         return false;
       }
       const existingLevels = getUserAccessLevelsInSelectedGroup(u.UUID);
-      return existingLevels.length < ACCESS_LEVELS.length;
+      return existingLevels.length < availableAccessLevels.length;
     });
-  }, [allUsers, myUUID, myLevel, selectedGroup?.member_access_levels]);
+  }, [allUsers, myUUID, myLevel, selectedGroup?.member_access_levels, availableAccessLevels]);
 
   const filteredAddableUsers = useMemo(() => {
     const q = searchUserText.trim().toLowerCase();
@@ -290,7 +296,7 @@ export default function Groups({ language = "en" }) {
   }, [addUserId, allUsers]);
 
   const canRemoveAccessFromSelectedUser =
-    isAdmin || (isAgent && selectedAddUser?.role === "viewer");
+    isAdmin || (isAgent && selectedAddUser?.role === "agent");
 
   const newAccessLevelsToAdd = useMemo(() => {
     return addAccessLevels.filter(
@@ -321,9 +327,18 @@ export default function Groups({ language = "en" }) {
       if (selectedGroupMeetingIds.has(meetingId)) {
         return false;
       }
-      return !meetingsAssignedToOtherGroups.has(meetingId);
+      if (meetingsAssignedToOtherGroups.has(meetingId)) {
+        return false;
+      }
+      if (role === "admin" && currentUser?.responsible_access_level) {
+        const meetingType = (meeting.accessLevel || "").toLowerCase();
+        if (meetingType !== currentUser.responsible_access_level.toLowerCase()) {
+          return false;
+        }
+      }
+      return true;
     });
-  }, [allMeetings, selectedGroupMeetingIds, meetingsAssignedToOtherGroups]);
+  }, [allMeetings, selectedGroupMeetingIds, meetingsAssignedToOtherGroups, role, currentUser?.responsible_access_level]);
 
   const filteredAddableMeetings = useMemo(() => {
     const q = searchMeetingText.trim().toLowerCase();
@@ -847,8 +862,8 @@ export default function Groups({ language = "en" }) {
                                   getMemberAccessLevels(member.UUID).map(
                                     (lvl) => {
                                       const canRemoveLevel =
-                                        isAdmin ||
-                                        (isAgent && member.role === "viewer");
+                                        (isAdmin && availableAccessLevels.includes(lvl)) ||
+                                        (isAgent && member.role === "agent");
                                       return (
                                         <span
                                           key={`${member.UUID}-${lvl}`}
@@ -882,7 +897,7 @@ export default function Groups({ language = "en" }) {
                               </div>
                             </td>
                             {(isAdmin ||
-                              (isAgent && member.role === "viewer")) && (
+                              (isAgent && member.role === "agent")) && (
                               <td>
                                 <button
                                   className="btn-danger btn-sm"
@@ -910,9 +925,9 @@ export default function Groups({ language = "en" }) {
                     <h4>
                       {text.addMember}
                       {role === "agent"
-                        ? text.viewersOnly
+                        ? text.agentsOnly
                         : role === "admin"
-                          ? text.agentViewerOnly
+                          ? text.agentOnly
                           : ""}
                     </h4>
                     {addableUsers.length === 0 ? (
@@ -970,7 +985,7 @@ export default function Groups({ language = "en" }) {
                               role="group"
                               aria-label={text.meetingTypesAria}
                             >
-                              {ACCESS_LEVELS.map((lvl) => {
+                              {availableAccessLevels.map((lvl) => {
                                 const active = addAccessLevels.includes(lvl);
                                 const isExisting =
                                   existingAccessLevelsForSelectedUser.includes(

@@ -91,13 +91,15 @@ class MeetingRepository(BaseRepository):
         )
         return access_row is not None
     
-    def get_all_meetings(self,user_uuid: str,user_role: str | None = None, access_level: AccessLevel | None = None) -> list[MeetingOutput]:
+    def get_all_meetings(self, user_uuid: str, user_role: str | None = None, access_level: AccessLevel | None = None, responsible_access_level: str | None = None) -> list[MeetingOutput]:
         """ מחזיר את כל הפגישות. אם נשלח access_level — מסנן לפי סוג (audio/video/blast_dial) """
         normalized_role = str(user_role or "").lower().strip()
         if normalized_role in ["admin", "super_admin"]:
             query = self.session.query(Meeting)
             if access_level is not None:
                 query = query.filter(Meeting.accessLevel == access_level)
+            elif normalized_role == "admin" and responsible_access_level:
+                query = query.filter(cast(Meeting.accessLevel, String) == responsible_access_level)
             return query.distinct().all()
 
         try:

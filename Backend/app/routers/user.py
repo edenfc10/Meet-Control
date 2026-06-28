@@ -146,30 +146,6 @@ def create_admin_user(
         raise HTTPException(status_code=500, detail=str(error))
 
 
-@userRouter.post("/create-viewer", status_code=200, response_model=UserOutput)
-def create_viewer_user(
-    user_data: UserInCreateNoRole,
-    session: Session = Depends(get_db),
-    user=Depends(allow_admins_only),  # admin, super_admin בלבד
-):
-    try:
-        LoggerManager.get_logger().info(
-            "Creating viewer user with s_id=%s by requester s_id=%s role=%s",
-            user_data.s_id,
-            user.s_id,
-            user.role.value,
-        )
-        return UserService(session=session).create_viewer_user(user_data=user_data)
-    except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to create viewer user s_id=%s by requester %s:%s role=%s",
-            user_data.s_id,
-            user.s_id,
-            user.UUID,
-            user.role.value,
-        )
-        raise HTTPException(status_code=500, detail=str(error))
-    
 @userRouter.put("/update/{user_uuid}", status_code=200, response_model=UserOutput)
 def update_user_details(
     user_uuid: str,
@@ -182,7 +158,7 @@ def update_user_details(
         # בדיקת הרשאות לשינוי role
         if update_data.role is not None:
             new_role = getattr(update_data.role, "value", update_data.role)
-            ROLE_HIERARCHY = {"super_admin": 4, "admin": 3, "agent": 2, "viewer": 1}
+            ROLE_HIERARCHY = {"super_admin": 4, "admin": 3, "agent": 2}
             if ROLE_HIERARCHY.get(new_role, 0) >= ROLE_HIERARCHY.get(requester_role, 0):
                 raise HTTPException(status_code=403, detail="You cannot assign a role equal to or higher than your own.")
         LoggerManager.get_logger().info(

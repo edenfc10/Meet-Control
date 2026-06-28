@@ -29,7 +29,7 @@ groupRouter = APIRouter()
 allow_super_admin_only = TokenValidator(allowed_roles=["super_admin"])
 allow_admins_only = TokenValidator(allowed_roles=["admin", "super_admin"])
 validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
-all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent", "viewer"])
+all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 
 
 # --- POST /groups/create ---
@@ -50,7 +50,7 @@ def get_all_groups(session: Session = Depends(get_db), user=Depends(all_members_
             "User %s:%s with role %s requested all groups",
             user.s_id, user.UUID, user_role,
         )
-        if user_role in ("agent", "viewer"):
+        if user_role == "agent":
             return GroupService(session=session).get_groups_by_user_uuid(user_uuid=str(user.UUID))
         return GroupService(session=session).get_all_groups()
     except Exception as error:
@@ -116,7 +116,7 @@ def get_group_members(group_uuid: str, session: Session = Depends(get_db), user=
         user_role = str(getattr(user.role, "value", user.role)).lower().strip()
         group_service = GroupService(session=session)
 
-        if user_role in ("agent", "viewer") and not group_service.user_is_member_of_group(
+        if user_role == "agent" and not group_service.user_is_member_of_group(
             user_uuid=str(user.UUID),
             group_uuid=group_uuid,
         ):
@@ -233,7 +233,13 @@ def add_meeting_to_group(group_uuid: str, meeting_uuid: str, session: Session = 
             "User %s:%s with role %s is adding meeting UUID=%s to group UUID=%s",
             user.s_id, user.UUID, user.role.value, meeting_uuid, group_uuid,
         )
-        return GroupService(session=session).add_meeting_to_group(group_uuid=group_uuid, meeting_uuid=meeting_uuid)
+        user_role = str(getattr(user.role, "value", user.role)).lower().strip()
+        return GroupService(session=session).add_meeting_to_group(
+            group_uuid=group_uuid,
+            meeting_uuid=meeting_uuid,
+            requester_uuid=str(user.UUID),
+            requester_role=user_role,
+        )
     except HTTPException as http_error:
         raise http_error
     except Exception as error:

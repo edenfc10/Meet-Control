@@ -39,7 +39,7 @@ export default function Groups() {
   const isSuperAdmin = currentUser?.role === "super_admin";
   const isAdmin = currentUser?.role === "admin";
   const canManage = isSuperAdmin || isAdmin;
-  const canViewMembers = canManage || currentUser?.role === "viewer";
+  const canViewMembers = canManage || currentUser?.role === "agent";
 
   const getGroupId = (group) => String(group?.UUID || group?.id || "");
 
@@ -228,7 +228,7 @@ export default function Groups() {
 
   const availableMembers = allUsers.filter(
     (u) =>
-      ["agent", "viewer"].includes(u.role) &&
+      u.role === "agent" &&
       !selectedGroup?.members?.some((m) => String(m.UUID) === String(u.UUID)),
   );
 
@@ -451,7 +451,7 @@ export default function Groups() {
                 </h4>
                 {availableMembers.length === 0 ? (
                   <div className="empty-state">
-                    No available agents or viewers to add.
+                    No available agents to add.
                   </div>
                 ) : (
                   <div style={{ display: "flex", gap: "0.5rem" }}>
@@ -461,7 +461,7 @@ export default function Groups() {
                       onChange={(e) => setAddUserId(e.target.value)}
                       style={{ flex: 1 }}
                     >
-                      <option value="">Select an agent or viewer...</option>
+                      <option value="">Select an agent...</option>
                       {availableMembers.map((u) => (
                         <option key={u.UUID} value={u.UUID}>
                           {u.username} ({u.s_id}) - {u.role}

@@ -114,7 +114,7 @@ class GroupService:
         raise HTTPException(status_code=400, detail="Group is not available")
 
     # היררכיית roles: super_admin > admin > agent > viewer
-    ROLE_HIERARCHY = {"super_admin": 4, "admin": 3, "agent": 2, "viewer": 1}
+    ROLE_HIERARCHY = {"super_admin": 4, "admin": 3, "agent": 2}
 
     def add_member_to_group(
         self,
@@ -136,7 +136,7 @@ class GroupService:
 
         # viewer לא יכול לשייך אף אחד
         if requester_level < 2:
-            raise HTTPException(status_code=403, detail="Viewers cannot add members to groups")
+            raise HTTPException(status_code=403, detail="Insufficient permissions to add members to groups")
 
         # שולף את המשתמש המוסף
         target = self.__groupRepository._find_user(user_s_id)
@@ -161,6 +161,16 @@ class GroupService:
         if requester_role == "agent":
             if not self.__groupRepository.is_user_member_of_group(requester_uuid, group_uuid):
                 raise HTTPException(status_code=403, detail="Agent can only manage groups they belong to")
+
+        # admin עם responsible_access_level מוגבל רק לסוג שלו
+        if requester_role == "admin":
+            requester = self.__groupRepository._find_user(requester_uuid)
+            responsible_level = getattr(requester, "responsible_access_level", None)
+            if responsible_level and str(responsible_level) != str(access_level.value):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Admin restricted to {responsible_level} access only"
+                )
 
         group = self.__groupRepository.add_member_to_group(
             group_uuid=group_uuid,
@@ -189,7 +199,7 @@ class GroupService:
     ) -> GroupOutput:
         requester_level = self.ROLE_HIERARCHY.get(requester_role, 0)
         if requester_level < 2:
-            raise HTTPException(status_code=403, detail="Viewers cannot remove members from groups")
+            raise HTTPException(status_code=403, detail="Insufficient permissions to remove members from groups")
 
         target = self.__groupRepository._find_user(user_s_id)
         if not target:
@@ -211,6 +221,16 @@ class GroupService:
             if not self.__groupRepository.is_user_member_of_group(requester_uuid, group_uuid):
                 raise HTTPException(status_code=403, detail="Agent can only manage groups they belong to")
 
+        # admin עם responsible_access_level מוגבל רק לסוג שלו
+        if requester_role == "admin":
+            requester = self.__groupRepository._find_user(requester_uuid)
+            responsible_level = getattr(requester, "responsible_access_level", None)
+            if responsible_level and str(responsible_level) != str(access_level.value):
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Admin restricted to {responsible_level} access only"
+                )
+
         group = self.__groupRepository.remove_member_access_from_group(
             group_uuid=group_uuid,
             user_s_id=user_s_id,
@@ -220,7 +240,21 @@ class GroupService:
             return self._to_output(group)
         raise HTTPException(status_code=400, detail="Group or User is not available")
 
-    def add_meeting_to_group(self, group_uuid: str, meeting_uuid: str) -> GroupOutput:
+    def add_meeting_to_group(self, group_uuid: str, meeting_uuid: str, requester_uuid: str = None, requester_role: str = None) -> GroupOutput:
+        if requester_role == "admin" and requester_uuid:
+            requester = self.__groupRepository._find_user(requester_uuid)
+            responsible_level = getattr(requester, "responsible_access_level", None)
+            if responsible_level:
+                from app.models.meeting import Meeting
+                meeting = self.__groupRepository.session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
+                if meeting:
+                    meeting_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
+                    if meeting_type != str(responsible_level).lower():
+                        raise HTTPException(
+                            status_code=403,
+                            detail=f"Admin restricted to {responsible_level} meetings only"
+                        )
+
         group = self.__groupRepository.add_meeting_to_group_by_uuid(
             group_uuid=group_uuid, meeting_uuid=meeting_uuid
         )

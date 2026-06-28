@@ -742,6 +742,16 @@
   color: #166534;
 }
 
+.role-viewer {
+  background: #f3f4f6;
+  color: #4b5563;
+}
+
+.user-access-badge {
+  font-weight: 600;
+  color: var(--primary-600);
+}
+
 @media (max-width: 980px) {
   .app-container {
     grid-template-columns: 1fr;

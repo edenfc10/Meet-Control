@@ -29,12 +29,12 @@ class UserRepository(BaseRepository):
         """  ×™×•×¦×¨ ×ž×©×ª×ž×© ×—×“×© ×‘DB ×•×ž×©×™×™×š ××•×ª×• ×œ×ž×“×•×¨×™× ×× ×¦×•×™× ×• """
         data = user_data.model_dump(exclude_none=True)
 
-        # ×ž×•×¦×™× ××ª ×¨×©×™×ž×ª ×”×ž×“×•×¨×™× ×ž×”data ×œ×¤× ×™ ×™×¦×™×¨×ª ×”×™×•×–×¨
+       
         group_ids = data.pop("group_ids", [])
 
         new_user = User(**data)
 
-        # ×× ×¦×•×™× ×• ×ž×“×•×¨×™× - ×ž×©×™×™×š ××ª ×”×ž×©×ª×ž×© ××œ×™×”×
+        
         if group_ids and len(group_ids) > 0:
             groups = self.session.query(Group).filter(Group.UUID.in_(group_ids)).all()
             new_user.groups.extend(groups)

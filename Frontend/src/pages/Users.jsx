@@ -26,6 +26,7 @@ export default function Users({ language = "en" }) {
     username: "",
     password: "",
     role: "agent",
+    responsible_access_level: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -40,6 +41,7 @@ export default function Users({ language = "en" }) {
     username: "",
     password: "",
     role: "",
+    responsible_access_level: "",
   });
   const [editError, setEditError] = useState("");
   const [editSuccess, setEditSuccess] = useState("");
@@ -89,6 +91,10 @@ export default function Users({ language = "en" }) {
     cancel: isHebrew ? "ביטול" : "Cancel",
     deleteUser: isHebrew ? "מחק משתמש" : "Delete User",
     editModalTitle: isHebrew ? "עריכת משתמש" : "Edit User",
+    responsibleAccessLabel: isHebrew ? "סוג פגישה" : "Meeting Type",
+    responsibleAccessPlaceholder: isHebrew ? "בחר סוג" : "Select type",
+    audioLabel: isHebrew ? "אודיו" : "Audio",
+    videoLabel: isHebrew ? "וידאו" : "Video",
     newPasswordPlaceholder: isHebrew
       ? "סיסמה חדשה (אם לא משנים משאירים ריק)"
       : "New Password (leave blank to keep)",
@@ -103,10 +109,10 @@ export default function Users({ language = "en" }) {
 
   const roleOptions = useMemo(() => {
     if (currentUser?.role === "super_admin") {
-      return ["admin", "agent", "viewer"];
+      return ["admin", "agent"];
     }
     if (currentUser?.role === "admin") {
-      return ["agent", "viewer"];
+      return ["agent"];
     }
     return [];
   }, [currentUser?.role]);
@@ -199,6 +205,10 @@ export default function Users({ language = "en" }) {
       password: formData.password,
     };
 
+    if (formData.role === "admin" && formData.responsible_access_level) {
+      payload.responsible_access_level = formData.responsible_access_level;
+    }
+
     try {
       setSubmitting(true);
       setCreateError("");
@@ -206,8 +216,6 @@ export default function Users({ language = "en" }) {
 
       if (formData.role === "admin") {
         await userAPI.createAdmin(payload);
-      } else if (formData.role === "viewer") {
-        await userAPI.createViewer(payload);
       } else {
         await userAPI.createAgent(payload);
       }
@@ -222,6 +230,7 @@ export default function Users({ language = "en" }) {
         username: "",
         password: "",
         role: roleOptions[0] || "agent",
+        responsible_access_level: "",
       });
       await fetchUsers();
     } catch (err) {
@@ -274,6 +283,7 @@ export default function Users({ language = "en" }) {
       username: user.username || "",
       password: "",
       role: user.role || "",
+      responsible_access_level: user.responsible_access_level || "",
     });
     setEditError("");
     setEditSuccess("");
@@ -281,7 +291,7 @@ export default function Users({ language = "en" }) {
 
   const closeEditModal = () => {
     setEditingUser(null);
-    setEditFormData({ username: "", password: "", role: "" });
+    setEditFormData({ username: "", password: "", role: "", responsible_access_level: "" });
     setEditError("");
     setEditSuccess("");
   };
@@ -321,6 +331,11 @@ export default function Users({ language = "en" }) {
         role:
           editFormData.role !== editingUser.role
             ? editFormData.role
+            : undefined,
+        responsible_access_level:
+          editFormData.role === "admin" &&
+          editFormData.responsible_access_level !== editingUser.responsible_access_level
+            ? editFormData.responsible_access_level || undefined
             : undefined,
       });
 
@@ -462,6 +477,20 @@ export default function Users({ language = "en" }) {
                   </option>
                 ))}
               </select>
+              {formData.role === "admin" ? (
+                <select
+                  className="search-select"
+                  name="responsible_access_level"
+                  value={formData.responsible_access_level}
+                  onChange={handleChange}
+                >
+                  <option value="">
+                    {text.responsibleAccessPlaceholder}
+                  </option>
+                  <option value="audio">{text.audioLabel}</option>
+                  <option value="video">{text.videoLabel}</option>
+                </select>
+              ) : null}
             </div>
 
             <button
@@ -511,7 +540,6 @@ export default function Users({ language = "en" }) {
             ) : null}
             <option value="admin">admin</option>
             <option value="agent">agent</option>
-            <option value="viewer">viewer</option>
           </select>
 
           <button
@@ -542,6 +570,16 @@ export default function Users({ language = "en" }) {
                   </div>
                   <div className="meeting-meta">
                     {text.sidLabel}: {user.s_id}
+                    {user.role === "admin" && user.responsible_access_level ? (
+                      <span className="user-access-badge">
+                        {" | "}
+                        {user.responsible_access_level === "audio"
+                          ? text.audioLabel
+                          : user.responsible_access_level === "video"
+                            ? text.videoLabel
+                            : user.responsible_access_level}
+                      </span>
+                    ) : null}
                   </div>
                 </div>
                 {canCreateUsers &&
@@ -662,6 +700,20 @@ export default function Users({ language = "en" }) {
                     </option>
                   ))}
                 </select>
+                {editFormData.role === "admin" ? (
+                  <select
+                    className="search-select"
+                    name="responsible_access_level"
+                    value={editFormData.responsible_access_level}
+                    onChange={handleEditChange}
+                  >
+                    <option value="">
+                      {text.responsibleAccessPlaceholder}
+                    </option>
+                    <option value="audio">{text.audioLabel}</option>
+                    <option value="video">{text.videoLabel}</option>
+                  </select>
+                ) : null}
               </div>
 
               <div className="modal-actions">

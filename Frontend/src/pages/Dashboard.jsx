@@ -1,15 +1,100 @@
 import { useCallback, useEffect, useState } from "react";
-import { favoriteAPI, meetingAPI } from "../services/api";
+import { favoriteAPI, groupAPI, meetingAPI } from "../services/api";
+import { useAuth } from "../context/AuthContext";
 import LiveActivityChart from "../components/LiveActivityChart";
 import "../components/MeetingsPage.css";
 import "./Dashboard.css";
 
+function FavoriteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path
+        d="M12 17.2L6.12 20.67l1.56-6.68L2.5 9.5l6.82-.58L12 2.6l2.68 6.32 6.82.58-5.18 4.49 1.56 6.68z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function EditIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M12 20h9" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M16.5 3.5a2.12 2.12 0 113 3L8 18l-4 1 1-4 11.5-11.5z"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
+
+function DeleteIcon() {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+      <path d="M3 6h18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+      <path
+        d="M8 6V4h8v2m-1 0v13a2 2 0 01-2 2h-2a2 2 0 01-2-2V6"
+        fill="none"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+      <path d="M10 11v6M14 11v6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 export default function Dashboard({ language = "en" }) {
   const isHebrew = language === "he";
+  const { currentUser } = useAuth();
+  const userRole = currentUser?.role?.toLowerCase() || "";
+  const isAdmin = userRole === "admin" || userRole === "super_admin";
+  const isStaff = isAdmin || userRole === "agent";
+  const canEditPassword = isStaff;
 
   const [favorites, setFavorites] = useState([]);
   const [favLoading, setFavLoading] = useState(true);
   const [favError, setFavError] = useState("");
+
+  const [groupMap, setGroupMap] = useState({});
+  const [editId, setEditId] = useState(null);
+  const [editPassword, setEditPassword] = useState("");
+  const [editError, setEditError] = useState("");
+  const [saving, setSaving] = useState(false);
+  const [deletingId, setDeletingId] = useState(null);
+  const [deleteError, setDeleteError] = useState("");
+  const [meetingToDelete, setMeetingToDelete] = useState(null);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [participantsModal, setParticipantsModal] = useState(null);
+  const [participantsLoading, setParticipantsLoading] = useState(false);
+  const [participantsError, setParticipantsError] = useState("");
+  const [participants, setParticipants] = useState([]);
+  const [activeTab, setActiveTab] = useState("authorized");
+  const [liveParticipantsLoading, setLiveParticipantsLoading] = useState(false);
+  const [liveParticipantsError, setLiveParticipantsError] = useState("");
+  const [liveParticipants, setLiveParticipants] = useState([]);
+  const [liveCallId, setLiveCallId] = useState(null);
+  const [muteLoadingId, setMuteLoadingId] = useState(null);
+  const [kickLoadingId, setKickLoadingId] = useState(null);
+  const [assignGroupModal, setAssignGroupModal] = useState(null);
+  const [assignGroupId, setAssignGroupId] = useState("");
+  const [assignLoading, setAssignLoading] = useState(false);
+  const [assignError, setAssignError] = useState("");
+  const [confirmRemoveAssign, setConfirmRemoveAssign] = useState(false);
+  const [toast, setToast] = useState(null);
+
+  const showToast = (message, type = "success") => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
 
   const [liveStats, setLiveStats] = useState({
     total_active: 0,
@@ -43,8 +128,197 @@ export default function Dashboard({ language = "en" }) {
     try {
       await favoriteAPI.removeFavoriteMeeting(meetingUuid);
       await loadFavorites();
+      showToast(isHebrew ? "הוסר ממועדפים" : "Removed from favorites", "info");
     } catch (err) {
       setFavError(err.response?.data?.detail || "Failed to remove favorite.");
+    }
+  };
+
+  useEffect(() => {
+    groupAPI.listGroups()
+      .then((resp) => {
+        const map = {};
+        (resp.data || []).forEach((g) => {
+          const key = String(g.UUID).toLowerCase();
+          map[key] = g.name;
+        });
+        setGroupMap(map);
+      })
+      .catch(() => {});
+  }, []);
+
+  const handleEditSave = async (meeting) => {
+    setSaving(true);
+    setEditError("");
+    try {
+      await meetingAPI.updateMeetingPassword(meeting.meeting_uuid, editPassword.trim() || null);
+      setEditId(null);
+      setEditPassword("");
+      showToast(isHebrew ? "סיסמא עודכנה בהצלחה" : "Password updated successfully");
+      await loadFavorites();
+      await loadLiveStats();
+    } catch (err) {
+      setEditError(err.response?.data?.detail || (isHebrew ? "עדכון הסיסמה נכשל" : "Failed to update password"));
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  const handleDelete = (meeting) => {
+    setMeetingToDelete(meeting);
+    setShowDeleteConfirm(true);
+  };
+
+  const closeDeleteConfirm = () => {
+    setMeetingToDelete(null);
+    setShowDeleteConfirm(false);
+  };
+
+  const confirmDeleteMeeting = async () => {
+    if (!meetingToDelete) return;
+    setDeletingId(meetingToDelete.meeting_uuid);
+    setDeleteError("");
+    try {
+      await meetingAPI.deleteMeeting(meetingToDelete.meeting_uuid);
+      if (editId === meetingToDelete.meeting_uuid) {
+        setEditId(null);
+        setEditPassword("");
+      }
+      closeDeleteConfirm();
+      showToast(isHebrew ? "הוועידה נמחקה" : "Meeting deleted", "info");
+      await loadFavorites();
+      await loadLiveStats();
+    } catch (err) {
+      setDeleteError(err.response?.data?.detail || (isHebrew ? "מחיקת הוועידה נכשלה" : "Failed to delete meeting"));
+    } finally {
+      setDeletingId(null);
+    }
+  };
+
+  const handleViewParticipants = async (meeting) => {
+    setParticipantsModal(meeting);
+    setActiveTab("authorized");
+    setParticipants([]);
+    setParticipantsError("");
+    setLiveParticipants([]);
+    setLiveCallId(null);
+    setLiveParticipantsError("");
+    setParticipantsLoading(true);
+    try {
+      const resp = await meetingAPI.getParticipants(meeting.meeting_uuid);
+      setParticipants(resp.data.participants || []);
+    } catch {
+      setParticipantsError(isHebrew ? "טעינת משתתפים נכשלה" : "Failed to load participants");
+    } finally {
+      setParticipantsLoading(false);
+    }
+  };
+
+  const handleLoadLive = async (meeting) => {
+    setLiveParticipants([]);
+    setLiveCallId(null);
+    setLiveParticipantsError("");
+    setLiveParticipantsLoading(true);
+    try {
+      const resp = await meetingAPI.getLiveParticipants(meeting.meeting_uuid);
+      setLiveParticipants(resp.data.participants || []);
+      setLiveCallId(resp.data.call_id || null);
+    } catch {
+      setLiveParticipantsError(isHebrew ? "טעינת משתתפים חיים נכשלה" : "Failed to load live participants");
+    } finally {
+      setLiveParticipantsLoading(false);
+    }
+  };
+
+  const handleTabChange = (tab, meeting) => {
+    setActiveTab(tab);
+    if (tab === "live" && liveParticipants.length === 0 && !liveParticipantsLoading) {
+      handleLoadLive(meeting);
+    }
+  };
+
+  const handleMute = async (legId, currentMute) => {
+    if (!participantsModal) return;
+    setMuteLoadingId(legId);
+    try {
+      await meetingAPI.muteParticipant(participantsModal.meeting_uuid, liveCallId, legId, !currentMute);
+      setLiveParticipants((prev) =>
+        prev.map((p) =>
+          (p.legId || p["@id"]) === legId ? { ...p, mute: (!currentMute).toString() } : p
+        )
+      );
+    } catch {
+      setLiveParticipantsError(isHebrew ? "פעולת השתקה נכשלה" : "Mute action failed");
+    } finally {
+      setMuteLoadingId(null);
+    }
+  };
+
+  const handleKick = async (legId) => {
+    if (!participantsModal) return;
+    setKickLoadingId(legId);
+    try {
+      await meetingAPI.kickParticipant(participantsModal.meeting_uuid, liveCallId, legId);
+      setLiveParticipants((prev) => prev.filter((p) => (p.legId || p["@id"]) !== legId));
+    } catch {
+      setLiveParticipantsError(isHebrew ? "פעולת ההסרה נכשלה" : "Kick action failed");
+    } finally {
+      setKickLoadingId(null);
+    }
+  };
+
+  const handleOpenAssign = (meeting) => {
+    const currentGroupKey = meeting.groups?.[0]
+      ? String(meeting.groups[0]).toLowerCase()
+      : "";
+    setAssignGroupId(currentGroupKey);
+    setAssignError("");
+    setConfirmRemoveAssign(false);
+    setAssignGroupModal(meeting);
+  };
+
+  const handleAssignGroup = async () => {
+    if (!assignGroupModal) return;
+    setAssignLoading(true);
+    setAssignError("");
+    try {
+      const currentGroupKey = assignGroupModal.groups?.[0]
+        ? String(assignGroupModal.groups[0]).toLowerCase()
+        : "";
+      if (currentGroupKey && currentGroupKey !== assignGroupId) {
+        await groupAPI.removeMeeting(currentGroupKey, assignGroupModal.meeting_uuid);
+      }
+      if (assignGroupId) {
+        const targetUUID = Object.keys(groupMap).find((k) => k === assignGroupId);
+        if (targetUUID) await groupAPI.addMeeting(targetUUID, assignGroupModal.meeting_uuid);
+      }
+      setAssignGroupModal(null);
+      showToast(isHebrew ? "שיוך המדור עודכן בהצלחה" : "Group assigned successfully");
+      await loadFavorites();
+      await loadLiveStats();
+    } catch (err) {
+      setAssignError(err.response?.data?.detail || (isHebrew ? "שגיאה בשיוך" : "Assignment failed"));
+    } finally {
+      setAssignLoading(false);
+    }
+  };
+
+  const handleRemoveAssign = async () => {
+    if (!assignGroupModal?.groups?.[0]) return;
+    setAssignLoading(true);
+    setAssignError("");
+    try {
+      const currentGroupKey = String(assignGroupModal.groups[0]).toLowerCase();
+      await groupAPI.removeMeeting(currentGroupKey, assignGroupModal.meeting_uuid);
+      setAssignGroupModal(null);
+      setConfirmRemoveAssign(false);
+      showToast(isHebrew ? "שיוך המדור הוסר בהצלחה" : "Group assignment removed", "info");
+      await loadFavorites();
+      await loadLiveStats();
+    } catch (err) {
+      setAssignError(err.response?.data?.detail || (isHebrew ? "שגיאה בהסרה" : "Remove failed"));
+    } finally {
+      setAssignLoading(false);
     }
   };
 
@@ -78,9 +352,13 @@ export default function Dashboard({ language = "en" }) {
         cmsStats = cmsResponse.data?.by_type || null;
       } catch (cmsErr) {
         if (cmsErr.response?.status === 403) {
-          cmsWarning = "CMS access denied - participant counts are from DB fallback";
+          cmsWarning = isHebrew
+            ? "נתוני CMS מוגבלים להרשאות גבוהות — מספרי משתתפים מבסיס הנתונים"
+            : "CMS live data requires elevated permissions — participant counts from database";
         } else {
-          cmsWarning = "CMS unreachable - participant counts are from DB fallback";
+          cmsWarning = isHebrew
+            ? "CMS לא זמין — מספרי משתתפים מבסיס הנתונים"
+            : "CMS is unreachable — participant counts from database";
         }
       }
 
@@ -108,7 +386,12 @@ export default function Dashboard({ language = "en" }) {
         total_active: meetings.length,
         by_type: stats,
       });
-      setLiveWarning(cmsWarning || "CMS live participant counts - DB meeting counts");
+      setLiveWarning(
+        cmsWarning ||
+          (isHebrew
+            ? "מספרי ועידות מבסיס הנתונים, משתתפים חיים מ-CMS כשזמין"
+            : "Meeting counts from database, live participants from CMS when available")
+      );
       setLastUpdated(new Date());
     } catch (err) {
       setLiveError(
@@ -141,6 +424,7 @@ export default function Dashboard({ language = "en" }) {
         lastUpdated: "עודכן לאחרונה",
         liveChart: "פעילות חיה לפי סוג ועידה",
         favoriteMeetings: "ועידות מועדפות",
+        meeting: "ועידה",
         refresh: "רענן",
         loading: "טוען...",
         saved: "שמורות",
@@ -148,6 +432,39 @@ export default function Dashboard({ language = "en" }) {
         noParticipants: "אין משתתפים",
         noPassword: "ללא סיסמה",
         remove: "הסר",
+        removeFavorite: "הסר",
+        editPassword: "סיסמה",
+        delete: "מחק",
+        deleteMeeting: "מחק",
+        deleteModalTitle: "מחיקת ועידה",
+        deleteModalMessage: "למחוק את ועידה",
+        participants: "משתתפים",
+        authorized: "מורשים",
+        live: "פעילים",
+        assignGroup: "מדור",
+        assignGroupTitle: "שיוך מדור",
+        selectGroup: "בחר מדור...",
+        assign: "שייך",
+        removeAssign: "הסר שיוך",
+        saving: "שומר...",
+        deleting: "מוחק...",
+        assigning: "משייך...",
+        cancel: "ביטול",
+        save: "שמור",
+        close: "סגור",
+        noAuthorizedUsers: "אין משתמשים מורשים",
+        noLiveParticipants: "אין משתתפים פעילים",
+        name: "שם",
+        username: "שם משתמש",
+        role: "תפקיד",
+        group: "מדור",
+        state: "סטטוס",
+        muted: "מושתק",
+        actions: "פעולות",
+        mute: "השתק",
+        unmute: "בטל השתקה",
+        kick: "הסר",
+        sure: "בטוח?",
       }
     : {
         pageTitle: "Dashboard",
@@ -160,6 +477,7 @@ export default function Dashboard({ language = "en" }) {
         lastUpdated: "Last updated",
         liveChart: "Live Activity by Meeting Type",
         favoriteMeetings: "Favorite Meetings",
+        meeting: "Meeting",
         refresh: "Refresh",
         loading: "Loading...",
         saved: "saved",
@@ -167,6 +485,39 @@ export default function Dashboard({ language = "en" }) {
         noParticipants: "No participants",
         noPassword: "No password",
         remove: "Remove",
+        removeFavorite: "Remove",
+        editPassword: "Password",
+        delete: "Delete",
+        deleteMeeting: "Delete",
+        deleteModalTitle: "Delete Meeting",
+        deleteModalMessage: "Delete meeting",
+        participants: "Participants",
+        authorized: "Authorized",
+        live: "Live",
+        assignGroup: "Group",
+        assignGroupTitle: "Assign Group",
+        selectGroup: "Select group...",
+        assign: "Assign",
+        removeAssign: "Remove",
+        saving: "Saving...",
+        deleting: "Deleting...",
+        assigning: "Assigning...",
+        cancel: "Cancel",
+        save: "Save",
+        close: "Close",
+        noAuthorizedUsers: "No authorized users",
+        noLiveParticipants: "No active participants",
+        name: "Name",
+        username: "Username",
+        role: "Role",
+        group: "Group",
+        state: "State",
+        muted: "Muted",
+        actions: "Actions",
+        mute: "Mute",
+        unmute: "Unmute",
+        kick: "Kick",
+        sure: "Sure?",
       };
 
   return (
@@ -318,15 +669,94 @@ export default function Dashboard({ language = "en" }) {
                                 : labels.noParticipants}
                             </span>
                           </div>
+                          <div className="fav-meeting-actions">
+                            <button
+                              className="meeting-favorite-btn active"
+                              onClick={() => handleRemoveFavorite(meeting.meeting_uuid)}
+                            >
+                              <span className="action-btn-content">
+                                <span className="action-btn-icon"><FavoriteIcon /></span>
+                                <span>{labels.removeFavorite}</span>
+                              </span>
+                            </button>
+                            {isStaff && (
+                              <button
+                                className="meeting-edit-btn"
+                                onClick={() => {
+                                  setEditId(meeting.meeting_uuid);
+                                  setEditPassword(meeting.password || "");
+                                  setEditError("");
+                                }}
+                              >
+                                <span className="action-btn-content">
+                                  <span className="action-btn-icon"><EditIcon /></span>
+                                  <span>{labels.editPassword}</span>
+                                </span>
+                              </button>
+                            )}
+                            {isAdmin && (
+                              <button
+                                className="meeting-delete-btn"
+                                onClick={() => handleDelete(meeting)}
+                                disabled={deletingId === meeting.meeting_uuid}
+                              >
+                                <span className="action-btn-content">
+                                  <span className="action-btn-icon"><DeleteIcon /></span>
+                                  <span>{deletingId === meeting.meeting_uuid ? labels.deleting : labels.delete}</span>
+                                </span>
+                              </button>
+                            )}
+                            <button
+                              className="meeting-participants-btn"
+                              onClick={() => handleViewParticipants(meeting)}
+                            >
+                              <span className="action-btn-content">
+                                <span className="action-btn-icon">👥</span>
+                                <span>{labels.participants}</span>
+                              </span>
+                            </button>
+                            {isAdmin && (
+                              <button
+                                className="meeting-participants-btn"
+                                onClick={() => handleOpenAssign(meeting)}
+                              >
+                                <span className="action-btn-content">
+                                  <span className="action-btn-icon">📁</span>
+                                  <span>{labels.assignGroup}</span>
+                                </span>
+                              </button>
+                            )}
+                          </div>
+                          {canEditPassword && editId === meeting.meeting_uuid && (
+                            <div className="meeting-edit-row">
+                              <input
+                                type="text"
+                                placeholder={isHebrew ? "סיסמה חדשה" : "New password"}
+                                value={editPassword}
+                                onChange={(e) => setEditPassword(e.target.value)}
+                                className="meetings-create-input"
+                              />
+                              <button
+                                className="meetings-create-submit"
+                                onClick={() => handleEditSave(meeting)}
+                                disabled={saving}
+                              >
+                                {saving ? labels.saving : labels.save}
+                              </button>
+                              <button
+                                className="meeting-cancel-btn"
+                                onClick={() => {
+                                  setEditId(null);
+                                  setEditPassword("");
+                                  setEditError("");
+                                }}
+                              >
+                                {labels.cancel}
+                              </button>
+                              {editError && <span className="meetings-error">{editError}</span>}
+                            </div>
+                          )}
                         </div>
-                        <button
-                          className="meeting-delete-btn fav-meeting-remove"
-                          onClick={() =>
-                            handleRemoveFavorite(meeting.meeting_uuid)
-                          }
-                        >
-                          {labels.remove}
-                        </button>
                       </div>
                     ))}
                   </div>
@@ -336,6 +766,220 @@ export default function Dashboard({ language = "en" }) {
           </div>
         </div>
       </div>
+
+      {participantsModal && (
+        <div className="modal-overlay" onClick={() => setParticipantsModal(null)}>
+          <div className="modal-card modal-card--wide" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">
+              {labels.participants} — {labels.meeting} #{participantsModal.m_number}
+            </h3>
+
+            <div className="modal-tabs">
+              <button
+                className={`modal-tab${activeTab === "authorized" ? " active" : ""}`}
+                onClick={() => handleTabChange("authorized", participantsModal)}
+              >
+                👥 {labels.authorized}
+              </button>
+              {isStaff && (
+                <button
+                  className={`modal-tab${activeTab === "live" ? " active" : ""}`}
+                  onClick={() => handleTabChange("live", participantsModal)}
+                >
+                  📡 {labels.live}
+                </button>
+              )}
+            </div>
+
+            {activeTab === "authorized" && (
+              <>
+                {participantsLoading ? (
+                  <div className="logs-loading">{labels.loading}</div>
+                ) : participantsError ? (
+                  <div className="meetings-error">{participantsError}</div>
+                ) : participants.length === 0 ? (
+                  <div className="meetings-empty">{labels.noAuthorizedUsers}</div>
+                ) : (
+                  <table className="participants-table">
+                    <thead>
+                      <tr>
+                        <th>{labels.name}</th>
+                        <th>{labels.username}</th>
+                        <th>{labels.role}</th>
+                        <th>{labels.group}</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {participants.map((p, i) => (
+                        <tr key={i}>
+                          <td>{p.name || "—"}</td>
+                          <td>{p.username || "—"}</td>
+                          <td>{p.role || "—"}</td>
+                          <td>{p.group || "—"}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            )}
+
+            {activeTab === "live" && (
+              <>
+                {liveParticipantsLoading ? (
+                  <div className="logs-loading">{labels.loading}</div>
+                ) : liveParticipantsError ? (
+                  <div className="meetings-error">{liveParticipantsError}</div>
+                ) : liveParticipants.length === 0 ? (
+                  <div className="meetings-empty">{labels.noLiveParticipants}</div>
+                ) : (
+                  <table className="participants-table">
+                    <thead>
+                      <tr>
+                        <th>{labels.name}</th>
+                        <th>{labels.state}</th>
+                        <th>{labels.muted}</th>
+                        {isAdmin && <th>{labels.actions}</th>}
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {liveParticipants.map((p, i) => {
+                        const legId = p.legId || p["@id"] || String(i);
+                        const isMuted = p.mute === "true" || p.mute === true;
+                        return (
+                          <tr key={legId}>
+                            <td>{p.name || p.remoteParty || "—"}</td>
+                            <td>{p.state || p.status || "—"}</td>
+                            <td>{isMuted ? "🔇" : "🔊"}</td>
+                            {isAdmin && (
+                              <td className="participants-actions-cell">
+                                <button
+                                  className={`participant-action-btn ${isMuted ? "unmute" : "mute"}`}
+                                  onClick={() => handleMute(legId, isMuted)}
+                                  disabled={muteLoadingId === legId}
+                                >
+                                  {muteLoadingId === legId
+                                    ? "..."
+                                    : isMuted
+                                      ? labels.unmute
+                                      : labels.mute}
+                                </button>
+                                <button
+                                  className="participant-action-btn kick"
+                                  onClick={() => handleKick(legId)}
+                                  disabled={kickLoadingId === legId}
+                                >
+                                  {kickLoadingId === legId ? "..." : labels.kick}
+                                </button>
+                              </td>
+                            )}
+                          </tr>
+                        );
+                      })}
+                    </tbody>
+                  </table>
+                )}
+              </>
+            )}
+
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setParticipantsModal(null)}>
+                {labels.close}
+              </button>
+              {activeTab === "live" && (
+                <button className="btn-secondary" onClick={() => handleLoadLive(participantsModal)}>
+                  {labels.refresh}
+                </button>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {assignGroupModal && (
+        <div className="modal-overlay" onClick={() => setAssignGroupModal(null)}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">
+              {labels.assignGroupTitle} — #{assignGroupModal.m_number}
+            </h3>
+            <div style={{ marginBottom: "16px" }}>
+              <select
+                className="meetings-filter-select"
+                style={{ width: "100%", marginBottom: "12px" }}
+                value={assignGroupId}
+                onChange={(e) => setAssignGroupId(e.target.value)}
+                disabled={assignLoading}
+              >
+                <option value="">{labels.selectGroup}</option>
+                {Object.entries(groupMap).map(([uuid, name]) => (
+                  <option key={uuid} value={uuid}>{name}</option>
+                ))}
+              </select>
+            </div>
+            {assignError && (
+              <div className="meetings-error" style={{ marginBottom: "12px" }}>{assignError}</div>
+            )}
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={() => setAssignGroupModal(null)} disabled={assignLoading}>
+                {labels.cancel}
+              </button>
+              {assignGroupModal.groups?.[0] && !confirmRemoveAssign && (
+                <button className="btn-danger" onClick={() => setConfirmRemoveAssign(true)} disabled={assignLoading}>
+                  {labels.removeAssign}
+                </button>
+              )}
+              {assignGroupModal.groups?.[0] && confirmRemoveAssign && (
+                <>
+                  <span style={{ fontSize: "0.85rem", color: "#d32f2f", alignSelf: "center" }}>
+                    {labels.sure}
+                  </span>
+                  <button className="btn-danger" onClick={handleRemoveAssign} disabled={assignLoading}>
+                    {assignLoading ? labels.assigning : (isHebrew ? "כן, הסר" : "Yes, remove")}
+                  </button>
+                  <button className="btn-secondary" onClick={() => setConfirmRemoveAssign(false)} disabled={assignLoading}>
+                    {labels.cancel}
+                  </button>
+                </>
+              )}
+              <button className="btn-primary" onClick={handleAssignGroup} disabled={assignLoading || !assignGroupId}>
+                {assignLoading ? labels.assigning : labels.assign}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {showDeleteConfirm && meetingToDelete && (
+        <div className="modal-overlay" onClick={closeDeleteConfirm}>
+          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
+            <h3 className="modal-title">{labels.deleteModalTitle}</h3>
+            <p style={{ marginBottom: "20px", color: "#d32f2f", fontWeight: "500" }}>
+              {labels.deleteModalMessage} #{meetingToDelete.m_number || meetingToDelete.meeting_uuid?.slice(0, 8)}?
+            </p>
+
+            <div className="modal-actions">
+              <button className="btn-secondary" onClick={closeDeleteConfirm} disabled={deletingId === meetingToDelete.meeting_uuid}>
+                {labels.cancel}
+              </button>
+              <button className="btn-danger" onClick={confirmDeleteMeeting} disabled={deletingId === meetingToDelete.meeting_uuid}>
+                {deletingId === meetingToDelete.meeting_uuid ? labels.deleting : labels.deleteMeeting}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {deleteError && (
+        <div className="meetings-error meetings-inline-error" style={{ marginTop: "12px" }}>
+          {deleteError}
+        </div>
+      )}
+
+      {toast && (
+        <div className={`toast-notification toast-${toast.type}`}>
+          {toast.message}
+        </div>
+      )}
     </div>
   );
 }

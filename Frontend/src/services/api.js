@@ -63,7 +63,6 @@ export const userAPI = {
   getUserByS_id: (s_id) => api.get(`/users/${s_id}`),
   getUserByUuid: (uuid) => api.get(`/users/uuid/${uuid}`),
   createAgent: (userData) => api.post("/users/create-agent", userData),
-  createViewer: (userData) => api.post("/users/create-viewer", userData),
   createAdmin: (userData) => api.post("/users/create-admin", userData),
   deleteUser: (userId) => api.delete(`/users/${userId}`),
 };

@@ -74,7 +74,7 @@ export default function Reports({ language = "en" }) {
     return <Navigate to="/dashboard" replace />;
   }
 
-  const canReadAllUsers = currentUser?.role !== "viewer";
+  const canReadAllUsers = true;
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");

@@ -58,8 +58,8 @@ class MeetingService:
         # access_level: "audio" | "video" | "blast_dial"
         return self._to_output(self.__meetingRepository.create_meeting(meeting_data=meeting_data, access_level=access_level))
 
-    def get_all_meetings(self,user_uuid:str, user_role:str, access_level: AccessLevel | None = None) -> list[MeetingOutput]:
-        meetings = self.__meetingRepository.get_all_meetings(user_uuid=user_uuid, user_role=user_role, access_level=access_level)
+    def get_all_meetings(self, user_uuid: str, user_role: str, access_level: AccessLevel | None = None, responsible_access_level: str | None = None) -> list[MeetingOutput]:
+        meetings = self.__meetingRepository.get_all_meetings(user_uuid=user_uuid, user_role=user_role, access_level=access_level, responsible_access_level=responsible_access_level)
         # אם access_level נשלח — מסנן לפי סוג; אחרת מחזיר הכול
         return [self._to_output(m) for m in meetings]
     

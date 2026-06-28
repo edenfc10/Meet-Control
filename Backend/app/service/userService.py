@@ -64,7 +64,10 @@ class UserService:
 
             if access_token and refresh_token:
                 return UserLoginOutput(
-                    access_token=access_token, refresh_token=refresh_token, role=user.role
+                    access_token=access_token,
+                    refresh_token=refresh_token,
+                    role=user.role,
+                    responsible_access_level=getattr(user, "responsible_access_level", None),
                 )  # החזרת הטוקן והתפקיד
             raise HTTPException(status_code=500, detail="Unable to process request")
         raise HTTPException(status_code=401, detail="Please check your Credentials")
@@ -80,12 +83,7 @@ class UserService:
         ×ž×—×–×™×¨ ××ª ×›×œ ×”×ž×©×ª×ž×©×™×.
         ×× ×”×ž×©×ª×ž×© ×”× ×•×›×—×™ ×œ× super_admin - ×ž×¡×ª×™×¨ ×¡×•×¤×¨×™× ×ž×”×¨×©×™×ž×”.
         """
-        if current_user_role == "viewer" and current_user_uuid:
-            users = self.__userRepository.get_users_in_same_groups(
-                user_uuid=current_user_uuid
-            )
-        else:
-            users = self.__userRepository.get_all_users()
+        users = self.__userRepository.get_all_users()
         if current_user_role != "super_admin":
             users = [
                 user for user in users if self._role_value(user.role) != "super_admin"
@@ -113,17 +111,6 @@ class UserService:
         """
         user = self.get_user_by_s_id(s_id=s_id)
 
-        if requester_role == "viewer":
-            group_users = self.__userRepository.get_users_in_same_groups(
-                user_uuid=requester_uuid
-            )
-            allowed_ids = {str(u.UUID) for u in group_users}
-            if str(user.UUID) not in allowed_ids:
-                raise HTTPException(
-                    status_code=403,
-                    detail="Viewer can only access users in the same group",
-                )
-
         return user
     
     def update_details_on_user(self, user_uuid: str, update_data: UserInCreateNoRole) -> UserOutput:
@@ -137,6 +124,7 @@ class UserService:
                 s_id=user.s_id,
                 username=user.username,
                 role=user.role,
+                responsible_access_level=getattr(user, "responsible_access_level", None),
                 groups=[m.group_uuid for m in user.group_access_levels],
             )
         raise HTTPException(status_code=400, detail="User is not available")
@@ -182,6 +170,7 @@ class UserService:
             s_id=user.s_id,
             username=user.username,
             role=user.role,
+            responsible_access_level=getattr(user, "responsible_access_level", None),
             groups=[m.group_uuid for m in user.group_access_levels],
         )
         return user
@@ -196,20 +185,7 @@ class UserService:
             s_id=user.s_id,
             username=user.username,
             role=user.role,
-            groups=[m.group_uuid for m in user.group_access_levels],
-        )
-        return user
-
-    def create_viewer_user(self, user_data: UserInCreateNoRole) -> UserOutput:
-        """יוצר משתמש סוג viewer - הסיסמה מוצפנת לפני שמירה"""
-        hashed_password = HashHelp.get_password_hash(plain_password=user_data.password)
-        user_data.password = hashed_password
-        user = self.__userRepository.create_viewer_user(user_data=user_data)
-        user = UserOutput(
-            UUID=user.UUID,
-            s_id=user.s_id,
-            username=user.username,
-            role=user.role,
+            responsible_access_level=getattr(user, "responsible_access_level", None),
             groups=[m.group_uuid for m in user.group_access_levels],
         )
         return user

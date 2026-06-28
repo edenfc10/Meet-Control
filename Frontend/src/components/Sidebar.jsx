@@ -50,6 +50,7 @@ export default function Sidebar({ language = "en", onToggleLanguage }) {
   const menuSections = getMenuSections(isHebrew);
   const isSuperAdmin = currentUser?.role === "super_admin";
   const isAdmin = ["super_admin", "admin"].includes(currentUser?.role);
+  const isStaff = ["super_admin", "admin", "agent"].includes(currentUser?.role);
 
   return (
     <aside className="sidebar">
@@ -60,7 +61,7 @@ export default function Sidebar({ language = "en", onToggleLanguage }) {
 
             {section.items
               .filter((item) => {
-                if (item.path === "/dashboard") return isAdmin;
+                if (item.path === "/dashboard") return isStaff;
                 if (item.path === "/servers") return isSuperAdmin;
                 if (item.path === "/logs") return isSuperAdmin;
                 if (item.path === "/reports") return isAdmin;

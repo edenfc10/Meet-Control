@@ -35,7 +35,7 @@ meetingRouter = APIRouter()
 allow_super_admin_only = TokenValidator(allowed_roles=["super_admin"])
 allow_admins_only = TokenValidator(allowed_roles=["admin", "super_admin"])
 validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
-all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent", "viewer"])
+all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 
 # --- GET /meetings/all_access_levels ---
 # שליפת כל הפגישות ללא סינון לפי סוג
@@ -51,6 +51,7 @@ def get_all_meetings(session: Session = Depends(get_db), access_level: Optional[
             user_uuid=str(user.UUID),
             user_role=user_role,
             access_level=access_level,
+            responsible_access_level=getattr(user, "responsible_access_level", None),
         )
     except Exception as error:
         LoggerManager.get_logger().exception(

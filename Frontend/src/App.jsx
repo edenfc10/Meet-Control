@@ -119,7 +119,7 @@ export default function App() {
                   <Route
                     path="/"
                     element={
-                      ["super_admin", "admin"].includes(currentUser?.role) ? (
+                      ["super_admin", "admin", "agent"].includes(currentUser?.role) ? (
                         <Dashboard language={language} />
                       ) : (
                         <Navigate to="/audio-meetings" replace />
@@ -129,7 +129,7 @@ export default function App() {
                   <Route
                     path="/dashboard"
                     element={
-                      ["super_admin", "admin"].includes(currentUser?.role) ? (
+                      ["super_admin", "admin", "agent"].includes(currentUser?.role) ? (
                         <Dashboard language={language} />
                       ) : (
                         <Navigate to="/audio-meetings" replace />
