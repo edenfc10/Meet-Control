@@ -116,6 +116,9 @@ export const meetingAPI = {
     api.post(`/meetings/${meetingUuid}/mute`, { call_id: callId, leg_id: legId, mute }),
   kickParticipant: (meetingUuid, callId, legId) =>
     api.post(`/meetings/${meetingUuid}/kick`, { call_id: callId, leg_id: legId }),
+  cmsCreate: (meetingUuid) => api.post(`/meetings/${meetingUuid}/cms-create`),
+  cmsSync: (meetingUuid) => api.get(`/meetings/${meetingUuid}/cms-sync`),
+  cmsImport: () => api.post("/meetings/cms-import"),
 };
 
 export const favoriteAPI = {
@@ -133,6 +136,10 @@ export const serverAPI = {
   updateServer: (serverUuid, serverData) =>
     api.put(`/servers/${serverUuid}`, serverData),
   deleteServer: (serverUuid) => api.delete(`/servers/${serverUuid}`),
+};
+
+export const reportsAPI = {
+  getCdrByPhone: (phone) => api.get("/reports/cdr", { params: { phone } }),
 };
 
 export const logsAPI = {

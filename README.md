@@ -3,7 +3,7 @@
 **Meet Manager** הוא מערכת ניהול ועידות פנים-ארגונית מבוססת הרשאות תפקיד.  
 המערכת מאפשרת לאדמינים לנהל מדורים, משתמשים וחדרי ועידה וירטואליים — עם בקרת גישה מפורטת ברמת המדור.
 
-הבקאנד מתחבר לשרת **CMS (Cisco Meeting Server)** לצורך מידע על שיחות חיות, ומנהל מסד נתונים PostgreSQL עצמאי למשתמשים, מדורים ובקרת גישה.
+הבקאנד מתחבר לשני שרתי **CMS (Cisco Meeting Server)** — אחד ל-Audio ואחד ל-Video — לצורך מידע על שיחות חיות, יצירת CoSpaces, וסנכרון פגישות אוטומטי. הוא מנהל מסד נתונים PostgreSQL עצמאי למשתמשים, מדורים ובקרת גישה.
 
 ---
 
@@ -19,14 +19,15 @@
 8. [Roles & Permissions](#roles--permissions)
 9. [Admin Responsible Access Level](#admin-responsible-access-level)
 10. [Access Level System](#access-level-system)
-10. [API Reference](#api-reference)
-11. [Database Schema](#database-schema)
-12. [Frontend Pages](#frontend-pages)
-13. [Authentication Flow](#authentication-flow)
-14. [Logging System](#logging-system)
-15. [Security](#security)
-16. [CMS Integration](#cms-integration)
-17. [Data Persistence & Backups](#data-persistence--backups)
+11. [API Reference](#api-reference)
+12. [Database Schema](#database-schema)
+13. [Frontend Pages](#frontend-pages)
+14. [Authentication Flow](#authentication-flow)
+15. [Logging System](#logging-system)
+16. [Security](#security)
+17. [CMS Integration](#cms-integration)
+18. [Dual CMS Architecture](#dual-cms-architecture)
+19. [Data Persistence & Backups](#data-persistence--backups)
 
 ---
 
@@ -49,46 +50,38 @@
 
 ```
 Development (Docker Compose)
-Browser (React/Vite :5173)
+Browser (React/Vite → host port :3000)
   │
   │  HTTP + JWT session cookies
   ▼
 FastAPI Backend (:8001, mapped to container port 8000)
   │
-  ├── SQLAlchemy ORM ──► PostgreSQL (:5432)  [users / groups / access control]
+  ├── SQLAlchemy ORM ──► PostgreSQL (:5432)  [users / groups / meetings / access control]
   │
-  └── HTTP ────────────► Census API (:8001)  [external CMS meeting data]
+  ├── HTTP ────────────► CMS Audio Server (https://192.168.20.200:445/api/v1)
+  │                       [audio CoSpaces + live calls]
+  │
+  └── HTTP ────────────► CMS Video Server (https://192.168.20.201:445/api/v1)
+                          [video CoSpaces + live calls]
 
 Production (standalone stack)
 Browser
   │
   │  HTTP
   ▼
-Nginx :5173  (serves React build + reverse proxy)
+Nginx :3000  (serves React build + reverse proxy)
   │
   ├── /              -> React static build
   └── /auth|users|groups|meetings|protected|favorites|servers|logs -> FastAPI :8000
           │
           ├── meet-db (PostgreSQL, internal Docker network)
-          └── Census API (external, configured via CENSUS_HOST/PORT)
-
-Production (SSOT stack — docker-compose-ssot.yml)
-Browser
-  │
-  ▼
-Nginx :5173
-  │
-  └── meet-control-api :8000
-          │
-          ├── census-db (PostgreSQL on ssot-net, shared with Census)
-          └── Census API (on ssot-net)
+          ├── CMS Audio Server (external, configured via CMS_AUDIO_URL)
+          └── CMS Video Server (external, configured via CMS_VIDEO_URL)
 ```
 
-In **development**, the Vite dev server runs on host port `:5173` and the backend is accessible on host port `:8001` (mapped to container port `:8000`).
+In **development**, the Vite dev server runs inside Docker, exposed on host port `:3000` (remapped from container port `:5173` due to WSL2 networking). The backend is accessible on host port `:8001`.
 
-In the **standalone production stack** (`docker-compose.yml`), Meet has its own `meet-db` container and talks to an external Census API by IP.
-
-In the **SSOT production stack** (`docker-compose-ssot.yml`), Meet joins the shared `ssot-net` Docker network and connects directly to `census-db`, with no local DB container.
+The **dual CMS** setup routes all audio meetings to the audio CMS server and all video meetings to the video CMS server. `blast_dial` meetings are excluded from CMS interactions entirely.
 
 ---
 
@@ -193,14 +186,22 @@ docker compose up -d frontend
 
 > These values come from `docker-compose.yml` / `.env`. Change them before deploying to any shared environment.
 
+### Service URLs
+
+| Service            | URL                         |
+| ------------------ | --------------------------- |
+| Frontend           | http://localhost:3000       |
+| Backend API        | http://localhost:8001       |
+| API Docs (Swagger) | http://localhost:8001/docs  |
+
 ---
 
 ## Environment Variables
 
-Create a file named `.env` in the project root (or use `.env.prod` for production):
+Create a file named `.env` in the project root:
 
 ```env
-# PostgreSQL (Meet's own database)
+# PostgreSQL
 POSTGRES_USER=admin
 POSTGRES_PASSWORD=your_password
 POSTGRES_DB=meet_control
@@ -213,10 +214,20 @@ JWT_ALGORITHM=HS256
 SUPER_ADMIN_USERNAME=admin
 SUPER_ADMIN_PASSWORD=1234
 
-# Census API connection
-CENSUS_HOST=192.168.1.30
-CENSUS_PORT=8001
-CENSUS_PROTOCOL=http
+# Dual CMS — Audio Server
+CMS_AUDIO_URL=https://192.168.20.200:445
+
+# Dual CMS — Video Server
+CMS_VIDEO_URL=https://192.168.20.201:445
+
+# CMS Credentials (shared for both servers)
+CMS_USERNAME=admin
+CMS_PASSWORD=your_cms_password
+
+# CMS Options
+CMS_API_PREFIX=/api/v1        # API path prefix on the CMS server
+CMS_TIMEOUT=30
+CMS_VERIFY_SSL=false          # set true if using valid TLS cert
 
 # API behaviour
 RESET_DB=0
@@ -224,19 +235,11 @@ USE_ALEMBIC=1
 TZ=Asia/Jerusalem
 ```
 
-Frontend build-time variables (baked into the Nginx image at build time):
-
-```env
-VITE_API_URL=http://192.168.1.30:8000
-VITE_CMS_MODE=census         # mock | live | census
-VITE_CENSUS_URL=http://192.168.1.30:8001
-```
-
-For production, copy `.env.prod.example` to `.env.prod` and fill in real values. The deploy workflow copies it to `.env` before running compose.
-
 > **RESET_DB=1** drops all tables and deletes all data on the next startup. Always keep it at `0` in production.
 
-> **USE_ALEMBIC=1** runs `alembic upgrade head` automatically before `uvicorn` starts. Set to `0` in the SSOT stack where schema is managed by Census.
+> **USE_ALEMBIC=1** runs `alembic upgrade head` automatically before `uvicorn` starts.
+
+> **CMS_API_PREFIX** defaults to `/api/v1`. Change only if your CMS server uses a different path.
 
 ### Database migrations
 
@@ -447,30 +450,35 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 
 ### Meetings
 
-| Method | Endpoint                                  | Auth                                        | Description                                                         |
-| ------ | ----------------------------------------- | ------------------------------------------- | ------------------------------------------------------------------- |
-| GET    | `/meetings/all_meetings`                  | All roles (filtered by role + group access) | Get meetings (supports `?access_level=` filter)                     |
-| GET    | `/meetings/{meeting_uuid}`                | All roles (access checks apply)             | Get a single meeting                                                |
-| POST   | `/meetings/create_meeting`                | super_admin only                            | Create a meeting — **disabled for audio type in UI**                |
-| PUT    | `/meetings/{meeting_uuid}`                | admin, super_admin                          | Update a meeting (name / password)                                  |
-| DELETE | `/meetings/{meeting_uuid}`                | admin, super_admin                          | Delete a meeting                                                    |
-| GET    | `/meetings/number/{number}`               | admin, super_admin                          | Find meeting by number                                              |
-| PUT    | `/meetings/number/{meeting_number}`       | admin, super_admin                          | Update meeting by number                                            |
-| GET    | `/meetings/group/{group_uuid}`            | admin, super_admin                          | Get meetings for a group                                            |
-| GET    | `/meetings/live-status`                   | admin, super_admin                          | Live CMS stats: active calls + participants per meeting type        |
-| GET    | `/meetings/{meeting_uuid}/participants`        | All roles          | Get authorized users for this meeting (from DB via group membership) |
-| GET    | `/meetings/{meeting_uuid}/live-participants`   | admin, super_admin | Get live call participants from CMS (falls back to mock if CMS unreachable) |
-| POST   | `/meetings/{meeting_uuid}/mute`                | admin, super_admin | Mute or unmute a live participant (`call_id`, `leg_id`, `mute`) |
-| POST   | `/meetings/{meeting_uuid}/kick`                | admin, super_admin | Remove a live participant from a call (`call_id`, `leg_id`) |
+| Method | Endpoint                                      | Auth               | Description                                                                    |
+| ------ | --------------------------------------------- | ------------------ | ------------------------------------------------------------------------------ |
+| GET    | `/meetings/all_meetings`                      | All roles          | Get meetings (supports `?access_level=` filter)                                |
+| GET    | `/meetings/{meeting_uuid}`                    | All roles          | Get a single meeting                                                           |
+| POST   | `/meetings/create_meeting`                    | super_admin only   | Create a meeting in DB — also creates CoSpace on CMS automatically             |
+| POST   | `/meetings/cms-import`                        | admin, super_admin | Import all CoSpaces from both CMS servers into DB (skips existing)             |
+| PUT    | `/meetings/{meeting_uuid}`                    | admin, super_admin | Update a meeting (name / password)                                             |
+| DELETE | `/meetings/{meeting_uuid}`                    | admin, super_admin | Delete a meeting from DB                                                       |
+| GET    | `/meetings/number/{number}`                   | admin, super_admin | Find meeting by number                                                         |
+| PUT    | `/meetings/number/{meeting_number}`           | admin, super_admin | Update meeting by number                                                       |
+| GET    | `/meetings/group/{group_uuid}`                | admin, super_admin | Get meetings for a group                                                       |
+| GET    | `/meetings/live-status`                       | admin, super_admin | Live CMS stats: active calls + participants per meeting type                   |
+| GET    | `/meetings/{meeting_uuid}/participants`       | All roles          | Get authorized users for this meeting (from DB via group membership)           |
+| GET    | `/meetings/{meeting_uuid}/live-participants`  | admin, super_admin | Get live call participants from CMS                                            |
+| POST   | `/meetings/{meeting_uuid}/cms-create`         | admin, super_admin | Create a CoSpace on the CMS server for an existing DB meeting                  |
+| GET    | `/meetings/{meeting_uuid}/cms-sync`           | admin, super_admin | Get live CMS data for a meeting: active status, call ID, live participant count |
+| POST   | `/meetings/{meeting_uuid}/mute`               | admin, super_admin | Mute or unmute a live participant (`call_id`, `leg_id`, `mute`)                |
+| POST   | `/meetings/{meeting_uuid}/kick`               | admin, super_admin | Remove a live participant from a call (`call_id`, `leg_id`)                    |
 
-> `participants` returns all users who are members of a group linked to this meeting, filtered by matching access level.
-> `live-participants` queries the CMS directly and returns a mock list if the CMS is unreachable.
+> `participants` returns all users who are members of a group linked to this meeting, filtered by matching access level.  
+> `cms-import` is called automatically by the frontend on page load — no manual action needed.  
+> `blast_dial` meetings are excluded from all CMS endpoints.
 
 **Create meeting request body:**
 
 ```json
 {
   "m_number": "891234",
+  "name": "Meeting Name",
   "accessLevel": "audio",
   "password": "optional-password"
 }
@@ -695,32 +703,83 @@ logs/
 
 ## CMS Integration
 
-The frontend switches CMS source via `VITE_CMS_MODE` in `Frontend/src/services/api.js`:
-
-| Mode | Behaviour |
-|------|-----------|
-| `mock` | Uses local `src/mocks/cmsMeetings.js` — pre-seeded meeting objects, 300 ms simulated delay |
-| `live` | Calls an external CMS server directly (configured via `VITE_CMS_URL` + `VITE_CMS_API_KEY`) |
-| `census` | Calls the internal Census API at `VITE_CENSUS_URL` |
-
-Expected Census / CMS endpoints:
-
-- `GET /meetings`
-- `GET /meetings/{meetingId}`
-- `POST /meetings`
-- `PUT /meetings/{meetingId}/password`
-- `DELETE /meetings/{meetingId}`
-
 ### Backend CMS Service (`Backend/app/service/cms.py`)
 
-A dedicated `CMS` class connects directly to the Cisco Meeting Server (CMS) via HTTP Basic Auth:
+A dedicated `CMS` class connects directly to the Cisco Meeting Server via HTTP Basic Auth + the `/api/v1` REST API.
 
-- **Base URL:** configured in class defaults (`https://192.168.1.24:445`)
-- **SSL:** verification disabled (self-signed cert environment)
-- Provides methods: `get_active_calls()`, `get_call_participants(call_id)`, `get_participants_by_meeting_number(m_number)`, `mute_participant()`, `kick_participant()`, and more
-- `requests` library is required — added to `requirements.txt`
+**Instantiation:**
+```python
+cms = CMS(cms_type="audio")   # connects to CMS_AUDIO_URL
+cms = CMS(cms_type="video")   # connects to CMS_VIDEO_URL
+```
+
+**Available methods:**
+
+| Method | Description |
+|--------|-------------|
+| `create_cospace(name, uri, passcode)` | Create a new CoSpace (meeting room) |
+| `delete_cospace(cospace_id)` | Delete a CoSpace |
+| `list_cospaces()` | List all CoSpaces on the server |
+| `get_cospace_details(cospace_id)` | Get details of a specific CoSpace |
+| `update_cospace_passcode(cospace_id, passcode)` | Update CoSpace passcode |
+| `get_active_calls()` | Get all active calls currently running |
+| `get_call_details(call_id)` | Get details of a specific call |
+| `get_call_participants(call_id)` | Get participants in a call |
+| `get_participants_by_meeting_number(m_number)` | Get participants by meeting number |
+| `mute_participant_by_leg_id(call_id, leg_id, mute)` | Mute/unmute a participant |
+| `kick_participant_by_leg_id(call_id, leg_id)` | Remove a participant from a call |
+| `test_connection()` | Returns `True` if CMS is reachable |
+| `get_system_info()` | Returns CMS system info |
+
+**SSL:** verification disabled by default (self-signed cert environment). Set `CMS_VERIFY_SSL=true` if using a valid certificate.
 
 > The `participants` endpoint in the Meetings API uses the DB (group memberships), not the CMS live call state.
+
+---
+
+## Dual CMS Architecture
+
+The system connects to **two separate CMS servers** — one for audio meetings, one for video meetings.
+
+### Routing logic
+
+| Meeting type | CMS server used      | Env variable    |
+|-------------|----------------------|-----------------|
+| `audio`     | Audio CMS            | `CMS_AUDIO_URL` |
+| `video`     | Video CMS            | `CMS_VIDEO_URL` |
+| `blast_dial`| **Not used** — excluded from all CMS calls | — |
+
+### Auto-sync flow
+
+Every time a user opens the Audio Meetings or Video Meetings page:
+
+```
+1. Frontend calls POST /meetings/cms-import
+2. Backend queries both CMS servers → GET /api/v1/coSpaces
+3. Each CoSpace is checked against the DB by meeting number (uri)
+4. New CoSpaces are created in the DB with the correct accessLevel
+5. Existing meetings are skipped (no duplicates)
+6. Frontend then fetches all meetings from DB and displays them
+```
+
+### Create meeting flow
+
+When a super_admin creates a meeting via the UI:
+
+```
+1. POST /meetings/create_meeting → saves meeting to DB
+2. POST /meetings/{uuid}/cms-create → creates CoSpace on matching CMS server
+3. Meeting appears in both DB and CMS
+```
+
+### API prefix
+
+The CMS REST API is served under `/api/v1` (not the root path). This is configured via `CMS_API_PREFIX` (default: `/api/v1`). The `CMS` class appends this automatically to the base URL.
+
+```
+https://192.168.20.200:445/api/v1/coSpaces  ← correct
+https://192.168.20.200:445/coSpaces         ← returns 404
+```
 
 ---
 

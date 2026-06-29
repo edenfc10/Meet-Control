@@ -6,43 +6,37 @@ import os
 
 logger = logging.getLogger(__name__)
 
-# Default CMS Configuration for Ubuntu Server
-DEFAULT_CMS_CONFIG = {
-    "base_url": "https://192.168.1.24:445",
-    "username": "admin",
-    "password": "S@p180tech",
-    "timeout": 30,
-    "verify_ssl": False
-}
-
 class CMS:
     """Cisco Meeting Server API Client"""
     
-    def __init__(self, base_url: str = None, username: str = None, password: str = None):
+    def __init__(self, base_url: str = None, username: str = None, password: str = None, cms_type: str = None):
         """
         Initialize CMS client
-        
+
         Args:
             base_url: Base URL for CMS API (e.g., "https://cms.example.com:8443")
-                     If None, uses default from environment or DEFAULT_CMS_CONFIG
-            username: CMS admin username. If None, uses default
-            password: CMS admin password. If None, uses default
+                     If None, uses CMS_AUDIO_URL or CMS_VIDEO_URL based on cms_type
+            username: CMS admin username. If None, uses CMS_USERNAME environment variable
+            password: CMS admin password. If None, uses CMS_PASSWORD environment variable
+            cms_type: Type of CMS server - "audio" or "video". If provided, uses CMS_AUDIO_URL or CMS_VIDEO_URL
         """
-        # Use environment variables or defaults if not provided
-        self.base_url = (base_url or 
-                         os.getenv('CMS_URL', '') or 
-                         DEFAULT_CMS_CONFIG["base_url"]).rstrip('/')
-        
-        self.username = (username or 
-                        os.getenv('CMS_USERNAME', '') or 
-                        DEFAULT_CMS_CONFIG["username"])
-        
-        self.password = (password or 
-                        os.getenv('CMS_PASSWORD', '') or 
-                        DEFAULT_CMS_CONFIG["password"])
-        
-        self.timeout = int(os.getenv('CMS_TIMEOUT', str(DEFAULT_CMS_CONFIG["timeout"])))
-        self.verify_ssl = os.getenv('CMS_VERIFY_SSL', str(DEFAULT_CMS_CONFIG["verify_ssl"])).lower() == 'true'
+        api_prefix = os.getenv('CMS_API_PREFIX', '/api/v1').rstrip('/')
+        if base_url:
+            self.base_url = base_url.rstrip('/') + api_prefix
+        elif cms_type:
+            if cms_type.lower() == 'audio':
+                self.base_url = os.getenv('CMS_AUDIO_URL', '').rstrip('/') + api_prefix
+            elif cms_type.lower() == 'video':
+                self.base_url = os.getenv('CMS_VIDEO_URL', '').rstrip('/') + api_prefix
+            else:
+                self.base_url = os.getenv('CMS_URL', '').rstrip('/') + api_prefix
+        else:
+            self.base_url = os.getenv('CMS_URL', '').rstrip('/') + api_prefix
+
+        self.username = username or os.getenv('CMS_USERNAME', '')
+        self.password = password or os.getenv('CMS_PASSWORD', '')
+        self.timeout = int(os.getenv('CMS_TIMEOUT', '30'))
+        self.verify_ssl = os.getenv('CMS_VERIFY_SSL', 'false').lower() == 'true'
         
         self.session = requests.Session()
         self.session.auth = (self.username, self.password)
@@ -117,8 +111,8 @@ class CMS:
         </coSpace>'''
         
         response = self.cms_post('coSpaces', xml=xml_data)
-        if response.status_code == 201:
-            return self._parse_xml_response(response.text)
+        if response.status_code in (200, 201):
+            return self._parse_xml_response(response.text) if response.text.strip() else {"status": "created"}
         else:
             raise Exception(f"Failed to create CoSpace: {response.status_code} - {response.text}")
     

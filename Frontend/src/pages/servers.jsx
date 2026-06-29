@@ -29,6 +29,7 @@ const ACCESS_LEVEL_HE_LABEL = {
 const createEmptySection = () => ({
   serverName: "",
   ipAddress: "",
+  port: "",
   username: "",
   password: "",
 });
@@ -48,6 +49,7 @@ const createDefaultSelection = () => ({
 const createEditDraft = (server) => ({
   server_name: server.server_name,
   ip_address: server.ip_address,
+  port: server.port,
   username: server.username,
   password: server.password,
   accessLevel: server.accessLevel,
@@ -78,6 +80,7 @@ export default function Reports({ language = "en" }) {
     add: isHebrew ? "הוספה" : "add",
     serverName: isHebrew ? "שם שרת" : "server name",
     ipAddress: isHebrew ? "כתובת IP" : "IP address",
+    port: isHebrew ? "פורט" : "port",
     username: isHebrew ? "שם משתמש" : "username",
     password: isHebrew ? "סיסמה" : "password",
     addServers: isHebrew ? "הוסף שרתים" : "add servers",
@@ -219,6 +222,7 @@ export default function Reports({ language = "en" }) {
         payload: {
           server_name: sectionData.serverName.trim(),
           ip_address: sectionData.ipAddress.trim(),
+          port: Number(sectionData.port),
           username: sectionData.username.trim(),
           password: sectionData.password,
           accessLevel: SECTION_TO_ACCESS_LEVEL[section.key],
@@ -277,7 +281,7 @@ export default function Reports({ language = "en" }) {
       editDraft.ip_address,
       editDraft.username,
       editDraft.password,
-    ].some((value) => !value.trim());
+    ].some((value) => !value.trim()) || !editDraft.port;
 
     if (hasMissingField) {
       setSaveError(text.allFieldsForUpdate);
@@ -290,6 +294,7 @@ export default function Reports({ language = "en" }) {
       await serverAPI.updateServer(editingServerUuid, {
         server_name: editDraft.server_name.trim(),
         ip_address: editDraft.ip_address.trim(),
+        port: Number(editDraft.port),
         username: editDraft.username.trim(),
         password: editDraft.password,
         accessLevel: editDraft.accessLevel,
@@ -444,6 +449,16 @@ export default function Reports({ language = "en" }) {
                     }
                     disabled={!isSuperAdmin}
                   />
+                  <input
+                    className="search-input"
+                    type="text"
+                    placeholder={text.port}
+                    value={sectionData.port}
+                    onChange={(e) =>
+                      handleChange(section.key, "port", e.target.value)
+                    }
+                    disabled={!isSuperAdmin}
+                  />
 
                   <input
                     className="search-input"
@@ -501,6 +516,7 @@ export default function Reports({ language = "en" }) {
                   <th>{text.type}</th>
                   <th>{text.serverName}</th>
                   <th>{text.ipAddress}</th>
+                  <th>{text.port}</th>
                   <th>{text.username}</th>
                   <th>{text.password}</th>
                   <th>{text.actions}</th>
@@ -510,7 +526,7 @@ export default function Reports({ language = "en" }) {
               <tbody>
                 {servers.length === 0 ? (
                   <tr>
-                    <td className="reports-empty-row" colSpan={6}>
+                    <td className="reports-empty-row" colSpan={7}>
                       {isLoading ? text.loadingServers : text.noServers}
                     </td>
                   </tr>
@@ -573,6 +589,23 @@ export default function Reports({ language = "en" }) {
                             />
                           ) : (
                             server.ip_address
+                          )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <input
+                              className="search-input reports-inline-input"
+                              type="number"
+                              value={currentDraft.port}
+                              onChange={(event) =>
+                                handleEditChange(
+                                  "port",
+                                  event.target.value,
+                                )
+                              }
+                            />
+                          ) : (
+                            server.port
                           )}
                         </td>
                         <td>

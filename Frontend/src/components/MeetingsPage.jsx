@@ -185,6 +185,54 @@ export default function MeetingsPage({
   const [editError, setEditError] = useState("");
   const [saving, setSaving] = useState(false);
   const [favoriteBusyId, setFavoriteBusyId] = useState(null);
+  const [cmsCreateBusyId, setCmsCreateBusyId] = useState(null);
+  const [cmsSyncBusyId, setCmsSyncBusyId] = useState(null);
+  const [cmsImporting, setCmsImporting] = useState(false);
+
+  const handleCmsImport = async () => {
+    setCmsImporting(true);
+    try {
+      const resp = await meetingAPI.cmsImport();
+      const d = resp.data;
+      const msg = isHebrew
+        ? `יובאו: ${d.imported.length} פגישות\nדולגו: ${d.skipped.length}\nשגיאות: ${d.errors.length}`
+        : `Imported: ${d.imported.length} meetings\nSkipped: ${d.skipped.length}\nErrors: ${d.errors.length}`;
+      alert(msg);
+      if (d.imported.length > 0 && onRefresh) onRefresh();
+    } catch (err) {
+      alert(isHebrew ? `שגיאה בייבוא: ${err?.response?.data?.detail || err.message}` : `Import error: ${err?.response?.data?.detail || err.message}`);
+    } finally {
+      setCmsImporting(false);
+    }
+  };
+
+  const handleCmsCreate = async (meeting) => {
+    setCmsCreateBusyId(meeting.dbId);
+    try {
+      await meetingAPI.cmsCreate(meeting.dbId);
+      alert(isHebrew ? `הפגישה "${meeting.name || meeting.meetingId}" נוצרה בהצלחה בשרת CMS.` : `Meeting "${meeting.name || meeting.meetingId}" created on CMS successfully.`);
+    } catch (err) {
+      alert(isHebrew ? `שגיאה ביצירה בשרת: ${err?.response?.data?.detail || err.message}` : `CMS error: ${err?.response?.data?.detail || err.message}`);
+    } finally {
+      setCmsCreateBusyId(null);
+    }
+  };
+
+  const handleCmsSync = async (meeting) => {
+    setCmsSyncBusyId(meeting.dbId);
+    try {
+      const resp = await meetingAPI.cmsSync(meeting.dbId);
+      const d = resp.data;
+      const msg = isHebrew
+        ? `פגישה: ${d.name || d.meeting_number}\nסטטוס: ${d.is_active ? "פעילה ✅" : "לא פעילה ❌"}\nמשתתפים: ${d.participant_count}`
+        : `Meeting: ${d.name || d.meeting_number}\nStatus: ${d.is_active ? "Active ✅" : "Inactive ❌"}\nParticipants: ${d.participant_count}`;
+      alert(msg);
+    } catch (err) {
+      alert(isHebrew ? `שגיאה בסנכרון: ${err?.response?.data?.detail || err.message}` : `Sync error: ${err?.response?.data?.detail || err.message}`);
+    } finally {
+      setCmsSyncBusyId(null);
+    }
+  };
 
   const handleViewParticipants = async (meeting) => {
     setParticipantsModal(meeting);
@@ -225,8 +273,6 @@ export default function MeetingsPage({
       ? "מחיקת הוועידה נכשלה."
       : "Failed to delete meeting.",
     loadingMeetings: isHebrew ? "טוען ועידות..." : "Loading meetings...",
-    searchByNumber: isHebrew ? "מספר ועידה" : "Meeting Number",
-    searchByName: isHebrew ? "שם ועידה" : "Meeting Name",
     searchByNameOrNumber: isHebrew ? "שם או מספר" : "Name or Number",
     searchByGroup: isHebrew ? "שם מדור" : "Group Name",
     searchByNoGroup: isHebrew ? "ללא מדור" : "No group",
@@ -424,12 +470,19 @@ export default function MeetingsPage({
     setCreating(true);
     setCreateError("");
     try {
-      await meetingAPI.createMeeting({
+      const created = await meetingAPI.createMeeting({
         name: name.trim(),
         m_number: mNumber.trim(),
         accessLevel,
         ...(password.trim() ? { password: password.trim() } : {}),
       });
+      if (accessLevel !== "blast_dial" && created?.data?.UUID) {
+        try {
+          await meetingAPI.cmsCreate(created.data.UUID);
+        } catch (cmsErr) {
+          setCreateError(isHebrew ? `הפגישה נוצרה ב-DB אך שגיאה בשרת CMS: ${cmsErr?.response?.data?.detail || cmsErr.message}` : `Meeting saved but CMS error: ${cmsErr?.response?.data?.detail || cmsErr.message}`);
+        }
+      }
       setMNumber("");
       setName("");
       setPassword("");
@@ -554,8 +607,6 @@ export default function MeetingsPage({
               onChange={(e) => { setSearchField(e.target.value); setSearch(""); }}
             >
               <option value="name_or_number">{text.searchByNameOrNumber}</option>
-              <option value="number">{text.searchByNumber}</option>
-              <option value="name">{text.searchByName}</option>
               <option value="group">{text.searchByGroup}</option>
               <option value="no_group">{text.searchByNoGroup}</option>
             </select>

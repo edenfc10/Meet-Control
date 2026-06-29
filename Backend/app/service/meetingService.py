@@ -141,7 +141,7 @@ class MeetingService:
     def get_active_meetings(self) -> Dict:
         """
         מחזיר סטטיסטיקה של פגישות פעילות (live) מה-CMS.
-        לכל שיחה פעילה מחפש את סוג הפגישה ב-DB ואם לא נמצא — משתמש בקידומת.
+        שואל את שני שרתי ה-CMS (audio ו-video) ומרכיב את התוצאות.
         אם ה-CMS לא זמין, מחזיר אפסים עם הודעת אזהרה.
         """
         stats = {
@@ -151,28 +151,49 @@ class MeetingService:
             "unknown": {"meetings": 0, "participants": 0},
         }
 
+        all_calls = []
+        warnings = []
+
+        # Query audio CMS
         try:
-            cms = CMS()
-            active_calls = cms.get_active_calls()
+            cms_audio = CMS(cms_type="audio")
+            audio_calls = cms_audio.get_active_calls()
+            all_calls.extend(audio_calls)
         except Exception as error:
-            LoggerManager.get_logger().warning(
-                "CMS unavailable for live stats. Error: %s", str(error)
-            )
+            LoggerManager.get_logger().warning("Audio CMS unavailable for live stats. Error: %s", str(error))
+            warnings.append("Audio CMS server is unreachable")
+
+        # Query video CMS
+        try:
+            cms_video = CMS(cms_type="video")
+            video_calls = cms_video.get_active_calls()
+            all_calls.extend(video_calls)
+        except Exception as error:
+            LoggerManager.get_logger().warning("Video CMS unavailable for live stats. Error: %s", str(error))
+            warnings.append("Video CMS server is unreachable")
+
+        if not all_calls:
             return {
                 "total_active": 0,
                 "by_type": stats,
-                "warning": "CMS server is unreachable - live statistics are temporarily unavailable",
+                "warning": "; ".join(warnings) if warnings else "No active calls found",
             }
 
         total_active = 0
 
-        for call in active_calls:
+        for call in all_calls:
             call_id = call.get("id") or call.get("callId") or call.get("@id")
             if not call_id:
                 continue
             call_name = str(call.get("name", ""))
             meeting_type = self._resolve_meeting_type(call_name)
+
+            # Only handle audio and video — blast_dial and unknown are skipped
+            if meeting_type not in ("audio", "video"):
+                continue
+
             try:
+                cms = CMS(cms_type=meeting_type)
                 participants = cms.get_call_participants(call_id)
                 participant_count = len(participants)
             except Exception:
@@ -190,7 +211,7 @@ class MeetingService:
         meeting = self.session.query(Meeting).filter(Meeting.m_number == str(m_number)).first()
         if meeting:
             mt_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
-            if mt_type in {"audio", "video", "blast_dial"}:
+            if mt_type in {"audio", "video"}:
                 return mt_type
 
         prefix = m_number[:2] if m_number.isdigit() and len(m_number) >= 2 else ""
@@ -198,7 +219,5 @@ class MeetingService:
             return "audio"
         if prefix == "77":
             return "video"
-        if prefix == "55":
-            return "blast_dial"
         return "unknown"
     

@@ -52,6 +52,15 @@ services:
       # Set to 1 only for a one-time fresh initialization, then back to 0.
       - RESET_DB=0
       - USE_ALEMBIC=0
+      # CMS Configuration (Audio and Video servers)
+      - CMS_AUDIO_URL=https://192.168.20.200:445
+      - CMS_VIDEO_URL=https://192.168.20.201:445
+      - CMS_USERNAME=admin
+      - CMS_PASSWORD=S@p180tech
+      - CMS_TIMEOUT=30
+      - CMS_VERIFY_SSL=false
+      # CORS Origins (comma-separated)
+      - CORS_ORIGINS=http://localhost:5173,http://localhost:5174,http://127.0.0.1:5173,http://127.0.0.1:5174,http://192.168.1.30:5173,http://192.168.1.30
     healthcheck:
       test: ["CMD-SHELL", "python -c \"import urllib.request; urllib.request.urlopen('http://localhost:8000/docs')\""]
       interval: 30s
@@ -80,7 +89,7 @@ services:
     container_name: meetings_frontend
     restart: always
     ports:
-      - "5173:5173"
+      - "3000:5173"
     volumes:
       - ./Frontend/src:/app/src
       - ./Frontend/vite.config.js:/app/vite.config.js

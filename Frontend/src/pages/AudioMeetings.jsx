@@ -18,6 +18,8 @@ export default function AudioMeetings({ language = "en" }) {
     try {
       setLoading(true);
       setError("");
+      // סנכרון מהשרת CMS לפני הטעינה מה-DB
+      try { await meetingAPI.cmsImport(); } catch (_) {}
       // הסינון מתבצע בבאקנד לפי access_level=audio
       const [response, favoriteSet] = await Promise.all([
         meetingAPI.getAllMeetings("audio"),

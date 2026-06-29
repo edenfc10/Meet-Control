@@ -1,6 +1,6 @@
-﻿import { useEffect, useMemo, useState } from "react";
+﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { cmsAPI, groupAPI, meetingAPI, userAPI } from "../services/api";
+import { cmsAPI, groupAPI, meetingAPI, reportsAPI, userAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import "./Reports.css";
 
@@ -51,15 +51,22 @@ export default function Reports({ language = "en" }) {
       ? "עדיין אין נתוני פעילות על ועידות."
       : "No meeting activity data available yet.",
     userMembershipTitle: isHebrew
-      ? "דוח משתתפים"
+      ? " דוח משתתף   לפי טלפון"
       : "Participant Report",
-    selectUser: isHebrew ? "בחר משתמש..." : "Select user...",
-    selectUserHint: isHebrew
-      ? "בחר משתמש כדי לראות ועידות קשורות."
-      : "Select a user to see related meetings.",
-    userNoMeetings: isHebrew
-      ? "המשתמש הזה עדיין לא משויך לאף ועידה."
-      : "This user is not linked to any meeting yet.",
+    phonePlaceholder: isHebrew ? "הכנס מספר טלפון..." : "Enter phone number...",
+    searchBtn: isHebrew ? "חיפוש" : "Search",
+    searching: isHebrew ? "מחפש..." : "Searching...",
+    cdrHint: isHebrew
+      ? "הכנס מספר טלפון של משתתף כדי לראות את היסטוריית השיחות שלו."
+      : "Enter a participant phone number to view their call history.",
+    cdrNoResults: isHebrew
+      ? "לא נמצאו שיחות עבור מספר זה."
+      : "No calls found for this number.",
+    cdrError: isHebrew ? "החיפוש נכשל." : "Search failed.",
+    colMeeting: isHebrew ? "ועידה" : "Meeting",
+    colDate: isHebrew ? "תאריך התחלה" : "Start Time",
+    colDuration: isHebrew ? "משך (שניות)" : "Duration (s)",
+    colStatus: isHebrew ? "סטטוס" : "Status",
     groupLabel: isHebrew ? "קבוצה" : "Group",
     unusedTitle: isHebrew ? "ועידות שלא בשימוש" : "Unused Meetings",
     noUnused: isHebrew
@@ -85,6 +92,28 @@ export default function Reports({ language = "en" }) {
   const [cmsMeetings, setCmsMeetings] = useState([]);
 
   const [userFilter, setUserFilter] = useState("");
+
+  const [cdrPhone, setCdrPhone] = useState("");
+  const [cdrResults, setCdrResults] = useState(null);
+  const [cdrLoading, setCdrLoading] = useState(false);
+  const [cdrError, setCdrError] = useState("");
+  const cdrInputRef = useRef(null);
+
+  const handleCdrSearch = async () => {
+    const phone = cdrPhone.trim();
+    if (!phone) return;
+    setCdrLoading(true);
+    setCdrError("");
+    setCdrResults(null);
+    try {
+      const resp = await reportsAPI.getCdrByPhone(phone);
+      setCdrResults(resp.data || []);
+    } catch (err) {
+      setCdrError(err?.response?.data?.detail || text.cdrError);
+    } finally {
+      setCdrLoading(false);
+    }
+  };
 
   const loadReports = async () => {
     try {
@@ -270,44 +299,61 @@ export default function Reports({ language = "en" }) {
 
       <section className="card reports-card">
         <h3 className="card-title">{text.userMembershipTitle}</h3>
-        <div className="reports-user-filter">
-          <select
-            className="search-select"
-            value={userFilter}
-            onChange={(e) => setUserFilter(e.target.value)}
+
+        <div style={{ display: "flex", gap: 8, marginBottom: 12 }}>
+          <input
+            ref={cdrInputRef}
+            className="search-input"
+            type="text"
+            placeholder={text.phonePlaceholder}
+            value={cdrPhone}
+            onChange={(e) => setCdrPhone(e.target.value)}
+            onKeyDown={(e) => e.key === "Enter" && handleCdrSearch()}
+            style={{ flex: 1 }}
+          />
+          <button
+            className="search-button"
+            type="button"
+            onClick={handleCdrSearch}
+            disabled={cdrLoading || !cdrPhone.trim()}
           >
-            <option value="">{text.selectUser}</option>
-            {users.map((u) => (
-              <option key={u.UUID} value={u.UUID}>
-                {u.username} ({u.s_id}) - {u.role}
-              </option>
-            ))}
-          </select>
+            {cdrLoading ? text.searching : text.searchBtn}
+          </button>
         </div>
 
-        {!selectedUser ? (
-          <div className="reports-empty">{text.selectUserHint}</div>
-        ) : userMeetingRows.length === 0 ? (
-          <div className="reports-empty">{text.userNoMeetings}</div>
-        ) : (
-          <div className="reports-list">
-            {userMeetingRows.map((m) => (
-              <div className="reports-list-item" key={`${m.uuid}-user-map`}>
-                <div className="reports-list-head">
-                  <strong>
-                    {text.meetingPrefix} #{m.meetingNumber}
-                  </strong>
-                  <span className="reports-tag">
-                    {roleLabel(m.accessLevel)}
-                  </span>
-                </div>
-                <div className="reports-sub">
-                  {text.groupLabel}:{" "}
-                  {m.groups.length ? m.groups.join(", ") : text.noGroup}
-                </div>
-              </div>
-            ))}
-          </div>
+        {!cdrResults && !cdrError && (
+          <div className="reports-empty">{text.cdrHint}</div>
+        )}
+
+        {cdrError && <div className="reports-error">{cdrError}</div>}
+
+        {cdrResults !== null && !cdrError && (
+          cdrResults.length === 0 ? (
+            <div className="reports-empty">{text.cdrNoResults}</div>
+          ) : (
+            <div className="reports-table-wrap">
+              <table className="reports-servers-table">
+                <thead>
+                  <tr>
+                    <th>{text.colMeeting}</th>
+                    <th>{text.colDate}</th>
+                    <th>{text.colDuration}</th>
+                    <th>{text.colStatus}</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {cdrResults.map((row, i) => (
+                    <tr key={i}>
+                      <td>{row.meeting_number ?? "—"}</td>
+                      <td>{row.start_time ?? "—"}</td>
+                      <td>{row.duration ?? "—"}</td>
+                      <td>{row.status ?? "—"}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )
         )}
       </section>
 

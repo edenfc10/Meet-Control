@@ -1,6 +1,6 @@
 ﻿import uuid
 
-from sqlalchemy import Column, DateTime, Enum as SqlEnum, String, func
+from sqlalchemy import Column, DateTime, Enum as SqlEnum, Integer, String, func
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 
 from app.core.database import Base
@@ -13,6 +13,7 @@ class Server(Base):
     UUID = Column(PostgresUUID(as_uuid=True), primary_key=True, default=uuid.uuid4, index=True)
     server_name = Column(String(120), nullable=False)
     ip_address = Column(String(45), nullable=False)
+    port = Column(Integer, nullable=False)
     username = Column(String(120), nullable=False)
     password = Column(String(255), nullable=False)
     accessLevel = Column(SqlEnum(AccessLevel), nullable=False, index=True)

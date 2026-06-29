@@ -33,6 +33,7 @@ from app.routers.favorite import favoriteRouter
 from app.routers.protect import protectRouter
 from app.routers.server import serverRouter
 from app.routers.logs import logsRouter
+from app.routers.reports import reportsRouter
 from logger import LoggerManager
 from app.schema.user import UserOutput
 from app.security.auth import AuthHand
@@ -155,3 +156,4 @@ app.include_router(router=meetingRouter, tags=["meetings"], prefix="/meetings")
 app.include_router(router=serverRouter, tags=["servers"], prefix="/servers")
 app.include_router(router=favoriteRouter, tags=["favorites"], prefix="/favorites")
 app.include_router(router=logsRouter, tags=["logs"], prefix="/logs")
+app.include_router(router=reportsRouter, tags=["reports"], prefix="/reports")

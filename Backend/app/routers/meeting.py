@@ -139,6 +139,109 @@ def create_meeting_by_access_level(meeting_data: MeetingInCreate, session: Sessi
         )
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+# --- POST /meetings/cms-import ---
+# מייבא CoSpaces מהשרתים audio/video ל-DB (רק אם לא קיימים כבר)
+@meetingRouter.post("/cms-import", status_code=200)
+def import_meetings_from_cms(session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+    imported = []
+    skipped = []
+    errors = []
+
+    for cms_type in ("audio", "video"):
+        try:
+            cms = CMS(cms_type=cms_type)
+            cospaces = cms.list_cospaces()
+        except Exception as e:
+            errors.append(f"{cms_type} CMS error: {str(e)}")
+            continue
+
+        for cs in cospaces:
+            uri = cs.get("uri", "")
+            name = cs.get("name", "") or uri
+            if not uri:
+                skipped.append({"cms_type": cms_type, "reason": "no uri", "name": name})
+                continue
+            existing = session.query(Meeting).filter(Meeting.m_number == str(uri)).first()
+            if existing:
+                skipped.append({"cms_type": cms_type, "m_number": uri, "reason": "already exists"})
+                continue
+            try:
+                access_level = AccessLevel(cms_type)
+                meeting = Meeting(
+                    m_number=str(uri),
+                    name=name or str(uri),
+                    accessLevel=access_level,
+                )
+                session.add(meeting)
+                session.commit()
+                session.refresh(meeting)
+                imported.append({"cms_type": cms_type, "m_number": uri, "name": name})
+            except Exception as e:
+                session.rollback()
+                errors.append(f"Failed to import {uri}: {str(e)}")
+
+    return {"imported": imported, "skipped": skipped, "errors": errors}
+
+
+# --- POST /meetings/{meeting_uuid}/cms-create ---
+# יצירת הפגישה גם בשרת CMS (CoSpace) לפי הנתונים שיש ב-DB
+@meetingRouter.post("/{meeting_uuid}/cms-create", status_code=200)
+def create_meeting_on_cms(meeting_uuid: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+    meeting = session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    cms_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
+    if cms_type not in ("audio", "video"):
+        raise HTTPException(status_code=400, detail=f"CMS creation not supported for type '{cms_type}'")
+    try:
+        cms = CMS(cms_type=cms_type)
+        result = cms.create_cospace(
+            name=meeting.name or meeting.m_number,
+            uri=meeting.m_number,
+            passcode=meeting.password or None,
+        )
+        LoggerManager.get_logger().info(
+            "User %s created CoSpace on %s CMS for meeting %s. Result: %s",
+            user.s_id, cms_type, meeting.m_number, result,
+        )
+        return {"success": True, "cms_type": cms_type, "meeting_number": meeting.m_number, "cms_response": result}
+    except Exception as error:
+        LoggerManager.get_logger().exception("Failed to create CoSpace on CMS for meeting %s: %s", meeting_uuid, str(error))
+        raise HTTPException(status_code=502, detail=f"CMS error: {str(error)}")
+
+
+# --- GET /meetings/{meeting_uuid}/cms-sync ---
+# שליפת נתונים על הפגישה מהשרת CMS לפי מספר הפגישה
+@meetingRouter.get("/{meeting_uuid}/cms-sync", status_code=200)
+def sync_meeting_from_cms(meeting_uuid: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+    meeting = session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    cms_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
+    if cms_type not in ("audio", "video"):
+        raise HTTPException(status_code=400, detail=f"CMS sync not supported for type '{cms_type}'")
+    try:
+        cms = CMS(cms_type=cms_type)
+        participants = cms.get_participants_by_meeting_number(meeting.m_number)
+        active_calls = cms.get_active_calls()
+        active_call = next(
+            (c for c in active_calls if str(c.get("name", "")) == str(meeting.m_number)),
+            None
+        )
+        return {
+            "meeting_number": meeting.m_number,
+            "name": meeting.name,
+            "cms_type": cms_type,
+            "is_active": active_call is not None,
+            "call_id": active_call.get("@id") or active_call.get("id") if active_call else None,
+            "live_participants": participants,
+            "participant_count": len(participants),
+        }
+    except Exception as error:
+        LoggerManager.get_logger().exception("Failed to sync meeting %s from CMS: %s", meeting_uuid, str(error))
+        raise HTTPException(status_code=502, detail=f"CMS error: {str(error)}")
+
+
 # --- GET /meetings/live-status ---
 # סטטיסטיקה חיה של שיחות ומשתתפים מה-CMS
 @meetingRouter.get("/live-status", status_code=200)
@@ -297,10 +400,16 @@ def mute_meeting_participant(meeting_uuid: str, body: dict, session: Session = D
     mute = body.get("mute", True)
     if not leg_id:
         raise HTTPException(status_code=400, detail="leg_id is required")
+    
+    meeting = session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    
     cms_success = False
     if call_id:
         try:
-            cms = CMS()
+            cms_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
+            cms = CMS(cms_type=cms_type)
             cms_success = cms.mute_participant_by_leg_id(call_id, leg_id, bool(mute))
         except Exception as cms_error:
             LoggerManager.get_logger().warning("CMS mute failed for meeting %s leg %s: %s", meeting_uuid, leg_id, str(cms_error))
@@ -331,10 +440,16 @@ def kick_meeting_participant(meeting_uuid: str, body: dict, session: Session = D
     call_id = body.get("call_id")
     if not leg_id:
         raise HTTPException(status_code=400, detail="leg_id is required")
+    
+    meeting = session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
+    if not meeting:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    
     cms_success = False
     if call_id:
         try:
-            cms = CMS()
+            cms_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
+            cms = CMS(cms_type=cms_type)
             cms_success = cms.kick_participant_by_leg_id(call_id, leg_id)
         except Exception as cms_error:
             LoggerManager.get_logger().warning("CMS kick failed for meeting %s leg %s: %s", meeting_uuid, leg_id, str(cms_error))

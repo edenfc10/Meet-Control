@@ -959,9 +959,14 @@ export default function Groups({ language = "en" }) {
                                     role="option"
                                     aria-selected={selected}
                                     className={`groups-search-select-option ${selected ? "is-selected" : ""}`}
-                                    onClick={() => setAddUserId(String(u.UUID))}
+                                    onClick={() => {
+                                      setAddUserId(String(u.UUID));
+                                      setSearchUserText("");
+                                    }}
                                   >
-                                    {u.username} ({u.s_id}) — {u.role}
+                                    <span>{u.username}</span>
+                                    <span style={{ color: "#888", fontSize: "0.82em", marginLeft: 4 }}>{u.s_id}</span>
+                                    <span className={`role-badge role-${u.role}`} style={{ marginLeft: 6, fontSize: "0.78em" }}>{u.role}</span>
                                   </button>
                                 );
                               })
@@ -978,8 +983,16 @@ export default function Groups({ language = "en" }) {
                         {canManageMembers && (
                           <div className="groups-types-field">
                             <div className="groups-field-label">
-                              TYPE MEETINGS
+                              {text.meetingTypes}
                             </div>
+                            {selectedAddUser && (
+                              <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 6, padding: "4px 8px", background: "#f0f4ff", borderRadius: 6, fontSize: "0.85em", border: "1px solid #c5d0f5" }}>
+                                <span style={{ fontWeight: 600 }}>{selectedAddUser.username}</span>
+                                <span style={{ color: "#888" }}>({selectedAddUser.s_id})</span>
+                                <span className={`role-badge role-${selectedAddUser.role}`} style={{ fontSize: "0.78em" }}>{selectedAddUser.role}</span>
+                                <button type="button" onClick={() => setAddUserId("")} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#888", fontSize: "1em", lineHeight: 1 }}>✕</button>
+                              </div>
+                            )}
                             <div
                               className="groups-access-segmented"
                               role="group"
@@ -1104,6 +1117,16 @@ export default function Groups({ language = "en" }) {
                       <div className="groups-empty">{text.noMeetingsToAdd}</div>
                     ) : (
                       <div className="groups-add-row groups-add-meeting-row">
+                        {addMeetingId && (() => {
+                          const selMeeting = allMeetings.find(m => String(m.UUID) === String(addMeetingId));
+                          return selMeeting ? (
+                            <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "5px 10px", background: "#f0f4ff", borderRadius: 6, fontSize: "0.85em", border: "1px solid #c5d0f5" }}>
+                              <span style={{ fontWeight: 600 }}>#{selMeeting.m_number}</span>
+                              <span style={{ color: "#888" }}>({formatAccessLevel(selMeeting.accessLevel)})</span>
+                              <button type="button" onClick={() => setAddMeetingId("")} style={{ marginLeft: "auto", background: "none", border: "none", cursor: "pointer", color: "#888", fontSize: "1em", lineHeight: 1 }}>✕</button>
+                            </div>
+                          ) : null;
+                        })()}
                         <div className="groups-search-select" role="group">
                           <input
                             className="groups-search-select-input"
