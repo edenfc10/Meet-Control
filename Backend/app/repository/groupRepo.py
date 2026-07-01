@@ -16,7 +16,7 @@ from .base import BaseRepository
 import uuid
 from app.models.user import User
 from app.models.group import Group
-from app.models.meeting import Meeting
+from app.models.meeting import GroupMeeting
 from app.models.member_group_access import MemberGroupAccess, MemberGroupAccessLevel
 from app.schema.user import GroupInCreate, GroupInUpdate, GroupOutput, UserOutput
 
@@ -184,43 +184,47 @@ class GroupRepository(BaseRepository):
         self.session.refresh(group)
         return group
 
-    def add_meeting_to_group_by_uuid(self, group_uuid: str, meeting_uuid: str) -> GroupOutput:
+    def add_meeting_to_group_by_number(self, group_uuid: str, meeting_number: str, access_level: str) -> GroupOutput:
         """
-        משייך פגישה למדור לפי UUID של שניהם.
-        מונע כפילויות — לא מוסיף אם הפגישה כבר שויכה.
-        מונע שיוך לקבוצה נוספת — פגישה יכולה להיות משויכת לקבוצה אחת בלבד.
+        משייך פגישה למדור לפי (מספר + סוג).
+        מונע כפילויות ומונע שיוך לקבוצה נוספת — פגישה משויכת למדור אחד בלבד.
         """
         group = self.session.query(Group).filter(Group.UUID == group_uuid).first()
-        meeting = self.session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
-
-        if not group or not meeting:
+        if not group:
             return None
 
-        # בדיקה: האם הפגישה כבר שויכה לקבוצה אחרת?
-        if meeting.groups:
-            already_in = [g for g in meeting.groups if str(g.UUID) != str(group_uuid)]
-            if already_in:
+        num = str(meeting_number)
+        lvl = str(access_level)
+        existing = self.session.query(GroupMeeting).filter(
+            GroupMeeting.meeting_number == num,
+            GroupMeeting.access_level == lvl,
+        ).first()
+        if existing:
+            if str(existing.group_uuid) != str(group.UUID):
                 from fastapi import HTTPException
                 raise HTTPException(
                     status_code=400,
-                    detail=f"Meeting is already assigned to group '{already_in[0].name}'. A meeting can only belong to one group."
+                    detail="Meeting is already assigned to another group. A meeting can only belong to one group.",
                 )
+            return group  # כבר משויכת למדור הזה
 
-        if meeting not in group.meetings:
-            group.meetings.append(meeting)
-
+        self.session.add(GroupMeeting(meeting_number=num, access_level=lvl, group_uuid=group.UUID))
         self.session.commit()
         self.session.refresh(group)
         return group
 
-    def remove_meeting_from_group_by_uuid(self, group_uuid: str, meeting_uuid: str) -> GroupOutput:
-        """ מסיר שיוך פגישה מקבוצה לפי UUID """
+    def remove_meeting_from_group_by_number(self, group_uuid: str, meeting_number: str, access_level: str | None = None) -> GroupOutput:
+        """ מסיר שיוך פגישה מקבוצה לפי מספר (ואם ידוע — גם סוג) """
         group = self.session.query(Group).filter(Group.UUID == group_uuid).first()
-        meeting = self.session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
-        if not group or not meeting:
+        if not group:
             return None
-        if meeting in group.meetings:
-            group.meetings.remove(meeting)
+        q = self.session.query(GroupMeeting).filter(
+            GroupMeeting.meeting_number == str(meeting_number),
+            GroupMeeting.group_uuid == group.UUID,
+        )
+        if access_level:
+            q = q.filter(GroupMeeting.access_level == str(access_level))
+        q.delete()
         self.session.commit()
         self.session.refresh(group)
         return group

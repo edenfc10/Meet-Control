@@ -57,7 +57,7 @@ class GroupService:
             UUID=group.UUID,
             name=group.name,
             members=unique_member_ids,
-            meetings=[m.UUID for m in group.meetings],
+            meetings=group.meeting_numbers,
             member_access_levels=[
                 MemberAccessOutput(
                     user_id=row.member_uuid, access_level=row.access_level
@@ -240,31 +240,34 @@ class GroupService:
             return self._to_output(group)
         raise HTTPException(status_code=400, detail="Group or User is not available")
 
-    def add_meeting_to_group(self, group_uuid: str, meeting_uuid: str, requester_uuid: str = None, requester_role: str = None) -> GroupOutput:
+    def add_meeting_to_group(self, group_uuid: str, meeting_number: str, requester_uuid: str = None, requester_role: str = None) -> GroupOutput:
+        # סוג הפגישה נקבע לפי ה-CMS (audio/video) — גם מאמת שהפגישה קיימת
+        from app.service.meetingService import MeetingService
+        cs, meeting_type = MeetingService(session=self.session)._find_cospace(meeting_number)
+        if not cs or not meeting_type:
+            raise HTTPException(status_code=404, detail="Meeting not found in CMS")
+
         if requester_role == "admin" and requester_uuid:
             requester = self.__groupRepository._find_user(requester_uuid)
             responsible_level = getattr(requester, "responsible_access_level", None)
-            if responsible_level:
-                from app.models.meeting import Meeting
-                meeting = self.__groupRepository.session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
-                if meeting:
-                    meeting_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
-                    if meeting_type != str(responsible_level).lower():
-                        raise HTTPException(
-                            status_code=403,
-                            detail=f"Admin restricted to {responsible_level} meetings only"
-                        )
+            if responsible_level and meeting_type != str(responsible_level).lower():
+                raise HTTPException(
+                    status_code=403,
+                    detail=f"Admin restricted to {responsible_level} meetings only",
+                )
 
-        group = self.__groupRepository.add_meeting_to_group_by_uuid(
-            group_uuid=group_uuid, meeting_uuid=meeting_uuid
+        group = self.__groupRepository.add_meeting_to_group_by_number(
+            group_uuid=group_uuid, meeting_number=meeting_number, access_level=meeting_type,
         )
         if group:
             return self._to_output(group)
         raise HTTPException(status_code=400, detail="Group or Meeting is not available")
 
-    def remove_meeting_from_group(self, group_uuid: str, meeting_uuid: str) -> GroupOutput:
-        group = self.__groupRepository.remove_meeting_from_group_by_uuid(
-            group_uuid=group_uuid, meeting_uuid=meeting_uuid
+    def remove_meeting_from_group(self, group_uuid: str, meeting_number: str) -> GroupOutput:
+        from app.service.meetingService import MeetingService
+        _, meeting_type = MeetingService(session=self.session)._find_cospace(meeting_number)
+        group = self.__groupRepository.remove_meeting_from_group_by_number(
+            group_uuid=group_uuid, meeting_number=meeting_number, access_level=meeting_type,
         )
         if group:
             return self._to_output(group)

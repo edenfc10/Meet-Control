@@ -51,6 +51,3 @@ class User(Base):
     group_access_levels = relationship(
         "MemberGroupAccess", back_populates="member", cascade="all, delete-orphan"
     )
-    meeting_statuses = relationship(
-        "MeetingParticipantStatus", back_populates="user", cascade="all, delete-orphan"
-    )

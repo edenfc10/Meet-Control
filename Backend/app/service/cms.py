@@ -103,14 +103,14 @@ class CMS:
     # CoSpace Management
     def create_cospace(self, name: str, uri: Optional[str] = None, passcode: Optional[str] = None) -> Dict:
         """Create a new CoSpace"""
-        xml_data = f'''<?xml version="1.0" encoding="UTF-8"?>
-        <coSpace>
-            <name>{name}</name>
-            {'<uri>' + uri + '</uri>' if uri else ''}
-            {'<passcode>' + passcode + '</passcode>' if passcode else ''}
-        </coSpace>'''
-        
-        response = self.cms_post('coSpaces', xml=xml_data)
+        form_data = {"name": name}
+        if uri:
+            form_data["uri"] = uri
+        if passcode:
+            form_data["passcode"] = passcode
+
+        url = f"{self.base_url}/coSpaces"
+        response = self.session.post(url, data=form_data, timeout=self.timeout)
         if response.status_code in (200, 201):
             return self._parse_xml_response(response.text) if response.text.strip() else {"status": "created"}
         else:
@@ -123,16 +123,51 @@ class CMS:
     
     def update_cospace_passcode(self, cospace_id: str, passcode: str) -> Dict:
         """Update CoSpace passcode"""
-        xml_data = f'''<?xml version="1.0" encoding="UTF-8"?>
-        <coSpace>
-            <passcode>{passcode}</passcode>
-        </coSpace>'''
-        
-        response = self.cms_put(f'coSpaces/{cospace_id}', xml=xml_data)
+        url = f"{self.base_url}/coSpaces/{cospace_id}"
+        response = self.session.put(url, data={"passcode": passcode}, timeout=self.timeout)
         if response.status_code == 200:
-            return self._parse_xml_response(response.text)
+            return {"status": "updated"}
         else:
             raise Exception(f"Failed to update CoSpace passcode: {response.status_code} - {response.text}")
+    
+    def get_cospace_by_uri(self, uri: str) -> Optional[Dict]:
+        """Find a CoSpace by its URI (meeting number)"""
+        cospaces = self.list_cospaces()
+        for cs in cospaces:
+            cs_id = cs.get("id") or cs.get("@id")
+            if not cs_id:
+                continue
+            try:
+                details = self.get_cospace_details(cs_id)
+                if str(details.get("uri", "")).strip() == str(uri).strip():
+                    if "id" not in details:
+                        details["id"] = cs_id
+                    return details
+            except Exception:
+                continue
+        return None
+    
+    def delete_cospace_by_uri(self, uri: str) -> bool:
+        """Delete a CoSpace by its URI. Returns False if not found (already gone)."""
+        cospace = self.get_cospace_by_uri(uri)
+        if not cospace:
+            return False
+        cospace_id = cospace.get("id") or cospace.get("@id")
+        if not cospace_id:
+            return False
+        return self.delete_cospace(cospace_id)
+    
+    def update_cospace_passcode_by_uri(self, uri: str, passcode: str) -> Dict:
+        """Update CoSpace passcode by its URI"""
+        cospace = self.get_cospace_by_uri(uri)
+        if not cospace:
+            raise Exception(f"CoSpace with uri '{uri}' not found")
+        cospace_id = cospace.get("id") or cospace.get("@id")
+        if not cospace_id:
+            raise Exception(f"CoSpace with uri '{uri}' has no id")
+        return self.update_cospace_passcode(cospace_id, passcode)
+
+    
     
     def get_cospace_details(self, cospace_id: str) -> Dict:
         """Get CoSpace details"""
@@ -142,17 +177,26 @@ class CMS:
         else:
             raise Exception(f"Failed to get CoSpace details: {response.status_code} - {response.text}")
     
-    def list_cospaces(self) -> List[Dict]:
-        """List all CoSpaces"""
+    def list_cospaces(self, full_details: bool = False) -> List[Dict]:
+        """List all CoSpaces. If full_details=True, fetches each CoSpace individually to include uri/name/passcode."""
         response = self.cms_get('coSpaces')
-        if response.status_code == 200:
-            root = ET.fromstring(response.text)
-            cospaces = []
-            for cospace in root.findall('coSpace'):
-                cospaces.append(self._xml_element_to_dict(cospace))
-            return cospaces
-        else:
+        if response.status_code != 200:
             raise Exception(f"Failed to list CoSpaces: {response.status_code} - {response.text}")
+        root = ET.fromstring(response.text)
+        cospaces = []
+        for cospace in root.findall('coSpace'):
+            cs = self._xml_element_to_dict(cospace)
+            if full_details:
+                cs_id = cs.get("id") or cs.get("@id")
+                if cs_id:
+                    try:
+                        details = self.get_cospace_details(cs_id)
+                        details["id"] = cs_id
+                        cs = details
+                    except Exception:
+                        pass
+            cospaces.append(cs)
+        return cospaces
     
     # Call Management
     def get_active_calls(self) -> List[Dict]:

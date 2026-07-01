@@ -32,10 +32,15 @@ class Group(Base):
     # --- Relationships (×§×©×¨×™×) ---
     # ×—×‘×¨×™ ×”×ž×“×•×¨ - ×¨×©×™×ž×ª ×”×ž×©×ª×ž×©×™× ×©×©×™×™×›×™× ×œ×ž×“×•×¨
 
-    # פגישות המדור - רשימת הפגישות ששייכות למדור
-    meetings = relationship(
-        "Meeting", secondary="meeting_group_association", back_populates="groups"
+    # פגישות המדור - שיוכים לפי מספר פגישה (GroupMeeting)
+    meeting_links = relationship(
+        "GroupMeeting", back_populates="group", cascade="all, delete-orphan"
     )
+
+    @property
+    def meeting_numbers(self):
+        """רשימת מספרי הפגישות המשויכות למדור."""
+        return [link.meeting_number for link in self.meeting_links]
     # ×¨×ž×•×ª ×’×™×©×” - ×ž×’×“×™×¨ ××™×–×• ×¨×ž×ª ×’×™×©×” ×œ×›×œ ×—×‘×¨ ×‘×ž×“×•×¨
     member_access_levels = relationship(
         "MemberGroupAccess", back_populates="group", cascade="all, delete-orphan"

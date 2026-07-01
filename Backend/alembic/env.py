@@ -11,7 +11,6 @@ from app.core.database import Base, DB_URL
 import app.models.favorite_meeting  # noqa: F401
 import app.models.group  # noqa: F401
 import app.models.meeting  # noqa: F401
-import app.models.meeting_participant_status  # noqa: F401
 import app.models.member_group_access  # noqa: F401
 import app.models.server  # noqa: F401
 import app.models.used_refresh_token  # noqa: F401

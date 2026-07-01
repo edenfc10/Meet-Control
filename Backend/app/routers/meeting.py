@@ -1,48 +1,50 @@
 # ============================================================================
-# Meeting Router - נתיבי API לניהול פגישות
+# Meeting Router - נתיבי API לניהול פגישות (מבוסס CMS)
 # ============================================================================
-# נתיבים:
-#   GET    /meetings/all_access_levels     - שליפת כל הפגישות
-#   GET    /meetings/number/{{number}}       - שליפת פגישה לפי מספר
-#   GET    /meetings/group/{{group_uuid}}    - רשימת פגישות לפי קבוצה
-#   GET    /meetings/{{uuid}}                - שליפת פגישה בודדת לפי UUID
-#   POST   /meetings/create_meeting        - יצירת פגישה חדשה
-#   DELETE /meetings/{{uuid}}                - מחיקת פגישה
-#   PUT    /meetings/{{uuid}}                - עדכון פגישה לפי UUID
-#   PUT    /meetings/number/{{number}}       - עדכון פגישה לפי מספר
+# הפגישות מנוהלות אך ורק ב-CMS. הזהות בכל הנתיבים היא מספר הפגישה (m_number).
 #
-# הרשאות: admin + super_admin בלבד (agent לקריאה בודדת)
+#   GET    /meetings/all_meetings            - כל הפגישות (מסונן ל-agent)
+#   GET    /meetings/number/{number}         - פגישה לפי מספר
+#   GET    /meetings/group/{group_uuid}      - מספרי פגישות של מדור
+#   GET    /meetings/live-status             - סטטיסטיקה חיה מה-CMS
+#   POST   /meetings/create_meeting          - יצירת פגישה (ב-CMS)
+#   DELETE /meetings/{meeting_number}        - מחיקת פגישה (מ-CMS + ניקוי overlay)
+#   PUT    /meetings/password/{meeting_number} - עדכון סיסמה (ב-CMS)
+#   GET    /meetings/{meeting_number}/participants      - משתמשים מורשים (DB)
+#   GET    /meetings/{meeting_number}/live-participants - משתתפים חיים (CMS)
+#   POST   /meetings/{meeting_number}/mute|kick         - השתקה/הסרה live (CMS)
+#   GET    /meetings/{meeting_number}         - פגישה בודדת לפי הרשאות
 # ============================================================================
 
-from fastapi import APIRouter, Depends, HTTPException, Path
-from app.schema.meeting import MeetingInCreate, MeetingInUpdate, MeetingOutput, MeetingPasswordUpdate
-from app.core.database import get_db
+from typing import Optional
+
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
+
+from app.core.database import get_db
+from app.schema.meeting import MeetingInCreate, MeetingOutput, MeetingPasswordUpdate
 from app.security.TokenValidator import TokenValidator
 from app.service.meetingService import MeetingService
-from app.models.meeting import AccessLevel
 from app.service.cms import CMS
-from logger import LoggerManager
-from typing import Optional
-from app.models.meeting import Meeting
+from app.models.meeting import AccessLevel
+from app.models.group import Group
 from app.models.user import User
-from app.models.meeting_participant_status import MeetingParticipantStatus
+from logger import LoggerManager
 
 
 meetingRouter = APIRouter()
 
-# הגדרת רמות הרשאה
 allow_super_admin_only = TokenValidator(allowed_roles=["super_admin"])
 allow_admins_only = TokenValidator(allowed_roles=["admin", "super_admin"])
 validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 
-# --- GET /meetings/all_access_levels ---
-# שליפת כל הפגישות ללא סינון לפי סוג
+
+# --- GET /meetings/all_meetings ---
 @meetingRouter.get("/all_meetings", status_code=200, response_model=list[MeetingOutput])
 def get_all_meetings(session: Session = Depends(get_db), access_level: Optional[AccessLevel] = None, user=Depends(all_members_validator)):
+    user_role = str(getattr(user.role, "value", user.role)).lower().strip()
     try:
-        user_role = str(getattr(user.role, "value", user.role)).lower().strip()
         LoggerManager.get_logger().info(
             "User %s:%s with role %s requested all meetings with access level=%s",
             user.s_id, user.UUID, user_role, access_level,
@@ -60,445 +62,217 @@ def get_all_meetings(session: Session = Depends(get_db), access_level: Optional[
         )
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-# --- GET /meetings/number/{{number}} ---
-# שליפת פגישה לפי מספר — חייב להיות לפני /{{meeting_uuid}} כדי שלא יתפס כ-UUID
+
+# --- GET /meetings/number/{number} ---
 @meetingRouter.get("/number/{number}", status_code=200, response_model=MeetingOutput)
-def get_meeting_by_number(number: int, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+def get_meeting_by_number(number: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
         LoggerManager.get_logger().info(
-            "User %s:%s with role %s requested meeting by number=%s",
-            user.s_id, user.UUID, user.role.value, number,
+            "User %s:%s requested meeting by number=%s", user.s_id, user.UUID, number,
         )
         return MeetingService(session=session).get_meeting_by_number(number=number)
-    except HTTPException as http_error:
-        raise http_error
+    except HTTPException:
+        raise
     except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to fetch meeting by number=%s. Error: %s", number, str(error),
-        )
+        LoggerManager.get_logger().exception("Failed to fetch meeting by number=%s. Error: %s", number, str(error))
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-# --- GET /meetings/group/{{group_uuid}} ---
-# שליפת פגישות לפי קבוצה — חייב להיות לפני /{{meeting_uuid}} כדי שלא יתפס כ-UUID
+
+# --- GET /meetings/group/{group_uuid} ---
 @meetingRouter.get("/group/{group_uuid}", status_code=200, response_model=list[str])
 def get_meetings_by_group_uuid(group_uuid: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
-        LoggerManager.get_logger().info(
-            "User %s:%s with role %s requested meetings for group UUID=%s",
-            user.s_id, user.UUID, user.role.value, group_uuid,
-        )
         return MeetingService(session=session).get_meetings_by_group_uuid(group_uuid=group_uuid)
-    except HTTPException as http_error:
-        raise http_error
+    except HTTPException:
+        raise
     except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to fetch meetings for group UUID=%s. Error: %s", group_uuid, str(error),
-        )
+        LoggerManager.get_logger().exception("Failed to fetch meetings for group UUID=%s. Error: %s", group_uuid, str(error))
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
+
+# --- GET /meetings/live-status ---
 @meetingRouter.get("/live-status", status_code=200)
 def get_live_status(session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
-        LoggerManager.get_logger().info(
-            "User %s:%s with role %s requested live status",
-            user.s_id, user.UUID, user.role.value,
-        )
         return MeetingService(session=session).get_active_meetings()
     except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to fetch live status for user %s:%s role=%s. Error: %s",
-            user.s_id, user.UUID, user.role.value, str(error),
-        )
+        LoggerManager.get_logger().exception("Failed to fetch live status. Error: %s", str(error))
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
 # --- POST /meetings/create_meeting ---
-# יצירת פגישה חדשה — access_level נלקח מגוף הבקשה
 @meetingRouter.post("/create_meeting", status_code=200, response_model=MeetingOutput)
 def create_meeting_by_access_level(meeting_data: MeetingInCreate, session: Session = Depends(get_db), user=Depends(allow_super_admin_only)):
     user_id = getattr(user, "s_id", "unknown")
-    user_uuid = getattr(user, "UUID", "unknown")
-    user_role = getattr(user, "role", None)
-    user_role_value = getattr(user_role, "value", user_role) or "unknown"
     try:
         LoggerManager.get_logger().info(
-            "User %s:%s with role %s is creating a meeting with access level %s",
-            user_id, user_uuid, user_role_value, meeting_data.accessLevel,
+            "User %s is creating a meeting %s (access level %s)",
+            user_id, meeting_data.m_number, meeting_data.accessLevel,
         )
         return MeetingService(session=session).create_meeting(meeting_data=meeting_data, access_level=meeting_data.accessLevel)
+    except HTTPException:
+        raise
     except ValueError as error:
-        LoggerManager.get_logger().warning(
-            "Failed to create meeting with access level %s for user %s:%s role=%s. Error: %s",
-            meeting_data.accessLevel, user_id, user_uuid, user_role_value, str(error),
-        )
         raise HTTPException(status_code=400, detail=str(error))
     except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to create meeting with access level %s for user %s:%s role=%s. Error: %s",
-            meeting_data.accessLevel, user_id, user_uuid, user_role_value, str(error),
-        )
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-# --- POST /meetings/cms-import ---
-# מייבא CoSpaces מהשרתים audio/video ל-DB (רק אם לא קיימים כבר)
-@meetingRouter.post("/cms-import", status_code=200)
-def import_meetings_from_cms(session: Session = Depends(get_db), user=Depends(allow_admins_only)):
-    imported = []
-    skipped = []
-    errors = []
-
-    for cms_type in ("audio", "video"):
-        try:
-            cms = CMS(cms_type=cms_type)
-            cospaces = cms.list_cospaces()
-        except Exception as e:
-            errors.append(f"{cms_type} CMS error: {str(e)}")
-            continue
-
-        for cs in cospaces:
-            uri = cs.get("uri", "")
-            name = cs.get("name", "") or uri
-            if not uri:
-                skipped.append({"cms_type": cms_type, "reason": "no uri", "name": name})
-                continue
-            existing = session.query(Meeting).filter(Meeting.m_number == str(uri)).first()
-            if existing:
-                skipped.append({"cms_type": cms_type, "m_number": uri, "reason": "already exists"})
-                continue
-            try:
-                access_level = AccessLevel(cms_type)
-                meeting = Meeting(
-                    m_number=str(uri),
-                    name=name or str(uri),
-                    accessLevel=access_level,
-                )
-                session.add(meeting)
-                session.commit()
-                session.refresh(meeting)
-                imported.append({"cms_type": cms_type, "m_number": uri, "name": name})
-            except Exception as e:
-                session.rollback()
-                errors.append(f"Failed to import {uri}: {str(e)}")
-
-    return {"imported": imported, "skipped": skipped, "errors": errors}
-
-
-# --- POST /meetings/{meeting_uuid}/cms-create ---
-# יצירת הפגישה גם בשרת CMS (CoSpace) לפי הנתונים שיש ב-DB
-@meetingRouter.post("/{meeting_uuid}/cms-create", status_code=200)
-def create_meeting_on_cms(meeting_uuid: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
-    meeting = session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
-    if not meeting:
-        raise HTTPException(status_code=404, detail="Meeting not found")
-    cms_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
-    if cms_type not in ("audio", "video"):
-        raise HTTPException(status_code=400, detail=f"CMS creation not supported for type '{cms_type}'")
-    try:
-        cms = CMS(cms_type=cms_type)
-        result = cms.create_cospace(
-            name=meeting.name or meeting.m_number,
-            uri=meeting.m_number,
-            passcode=meeting.password or None,
-        )
-        LoggerManager.get_logger().info(
-            "User %s created CoSpace on %s CMS for meeting %s. Result: %s",
-            user.s_id, cms_type, meeting.m_number, result,
-        )
-        return {"success": True, "cms_type": cms_type, "meeting_number": meeting.m_number, "cms_response": result}
-    except Exception as error:
-        LoggerManager.get_logger().exception("Failed to create CoSpace on CMS for meeting %s: %s", meeting_uuid, str(error))
+        LoggerManager.get_logger().exception("Failed to create meeting %s: %s", meeting_data.m_number, str(error))
         raise HTTPException(status_code=502, detail=f"CMS error: {str(error)}")
 
 
-# --- GET /meetings/{meeting_uuid}/cms-sync ---
-# שליפת נתונים על הפגישה מהשרת CMS לפי מספר הפגישה
-@meetingRouter.get("/{meeting_uuid}/cms-sync", status_code=200)
-def sync_meeting_from_cms(meeting_uuid: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
-    meeting = session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
-    if not meeting:
-        raise HTTPException(status_code=404, detail="Meeting not found")
-    cms_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
-    if cms_type not in ("audio", "video"):
-        raise HTTPException(status_code=400, detail=f"CMS sync not supported for type '{cms_type}'")
+# --- DELETE /meetings/{meeting_number} ---
+@meetingRouter.delete("/{meeting_number}", status_code=200)
+def delete_meeting(meeting_number: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
-        cms = CMS(cms_type=cms_type)
-        participants = cms.get_participants_by_meeting_number(meeting.m_number)
-        active_calls = cms.get_active_calls()
-        active_call = next(
-            (c for c in active_calls if str(c.get("name", "")) == str(meeting.m_number)),
-            None
-        )
-        return {
-            "meeting_number": meeting.m_number,
-            "name": meeting.name,
-            "cms_type": cms_type,
-            "is_active": active_call is not None,
-            "call_id": active_call.get("@id") or active_call.get("id") if active_call else None,
-            "live_participants": participants,
-            "participant_count": len(participants),
-        }
-    except Exception as error:
-        LoggerManager.get_logger().exception("Failed to sync meeting %s from CMS: %s", meeting_uuid, str(error))
-        raise HTTPException(status_code=502, detail=f"CMS error: {str(error)}")
-
-
-# --- GET /meetings/live-status ---
-# סטטיסטיקה חיה של שיחות ומשתתפים מה-CMS
-@meetingRouter.get("/live-status", status_code=200)
-def get_live_status(session: Session = Depends(get_db), user=Depends(allow_admins_only)):
-    try:
-        LoggerManager.get_logger().info(
-            "User %s:%s with role %s requested live status",
-            user.s_id, user.UUID, user.role.value,
-        )
-        return MeetingService(session=session).get_active_meetings()
-    except HTTPException as http_error:
-        raise http_error
-    except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to fetch live status for user %s:%s role=%s. Error: %s",
-            user.s_id, user.UUID, user.role.value, str(error),
-        )
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-
-# --- DELETE /meetings/{{meeting_uuid}} ---
-# מחיקת פגישה לפי UUID
-@meetingRouter.delete("/{meeting_uuid}", status_code=200)
-def delete_meeting(meeting_uuid: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
-    try:
-        LoggerManager.get_logger().info("Deleting meeting with UUID=%s", meeting_uuid)
-        MeetingService(session=session).delete_meeting(meeting_uuid=meeting_uuid)
+        LoggerManager.get_logger().info("User %s deleting meeting number=%s", user.s_id, meeting_number)
+        MeetingService(session=session).delete_meeting(number=meeting_number)
         return {"detail": "Meeting deleted successfully"}
-    except HTTPException as http_error:
-        LoggerManager.get_logger().warning(
-            "Failed to delete meeting UUID=%s: %s", meeting_uuid, http_error.detail,
-        )
-        raise http_error
+    except HTTPException:
+        raise
     except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to delete meeting UUID=%s. Error: %s", meeting_uuid, str(error),
-        )
+        LoggerManager.get_logger().exception("Failed to delete meeting number=%s. Error: %s", meeting_number, str(error))
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-# --- PUT /meetings/{{meeting_uuid}} ---
-# עדכון פגישה לפי UUID
-@meetingRouter.put("/{meeting_uuid}", status_code=200, response_model=MeetingOutput)
-def update_meeting_by_uuid(meeting_uuid: str, meeting_data: MeetingInUpdate, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+
+# --- PUT /meetings/password/{meeting_number} ---
+@meetingRouter.put("/password/{meeting_number}", status_code=200, response_model=MeetingOutput)
+def update_meeting_password(meeting_number: str, meeting_data: MeetingPasswordUpdate, session: Session = Depends(get_db), user=Depends(validator)):
+    user_role = str(getattr(user.role, "value", user.role)).lower().strip()
     try:
-        LoggerManager.get_logger().info("Updating meeting with UUID=%s", meeting_uuid)
-        return MeetingService(session=session).update_meeting_by_uuid(meeting_uuid=meeting_uuid, meeting_data=meeting_data)
-    except HTTPException as http_error:
-        raise http_error
-    except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to update meeting UUID=%s. Error: %s", meeting_uuid, str(error),
-        )
-        raise HTTPException(status_code=500, detail="Internal Server Error")
-    
-@meetingRouter.put("/password/{meeting_uuid}", status_code=200, response_model=MeetingOutput)
-def update_meeting_password(meeting_uuid: str, meeting_data: MeetingPasswordUpdate, session: Session = Depends(get_db), user=Depends(validator)):
-    try:
-        user_role = str(getattr(user.role, "value", user.role)).lower().strip()
         LoggerManager.get_logger().info(
-            "User %s:%s with role %s updating password for meeting UUID=%s",
-            user.s_id, user.UUID, user_role, meeting_uuid,
+            "User %s:%s (role %s) updating password for meeting number=%s",
+            user.s_id, user.UUID, user_role, meeting_number,
         )
-        return MeetingService(session=session).update_password_by_uuid(
-            meeting_uuid=meeting_uuid,
+        return MeetingService(session=session).update_password_by_number(
+            number=meeting_number,
             password=meeting_data.password,
             user_uuid=str(user.UUID),
             user_role=user_role,
         )
-    except HTTPException as http_error:
-        raise http_error
+    except HTTPException:
+        raise
     except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to update meeting password UUID=%s. Error: %s", meeting_uuid, str(error),
-        )
+        LoggerManager.get_logger().exception("Failed to update password for meeting number=%s. Error: %s", meeting_number, str(error))
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-# --- PUT /meetings/number/{{meeting_number}} ---
-# עדכון פגישה לפי מספר פגישה
-@meetingRouter.put("/number/{meeting_number}", status_code=200, response_model=MeetingOutput)
-def update_meeting_by_number(meeting_number: str, meeting_data: MeetingInUpdate, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
-    try:
-        LoggerManager.get_logger().info("Updating meeting with number=%s", meeting_number)
-        return MeetingService(session=session).update_meeting_by_number(meeting_number=meeting_number, meeting_data=meeting_data)
-    except HTTPException as http_error:
-        raise http_error
-    except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to update meeting number=%s. Error: %s", meeting_number, str(error),
-        )
-        raise HTTPException(status_code=500, detail="Internal Server Error")
 
-# --- GET /meetings/{meeting_uuid}/participants ---
-# שליפת משתמשים מורשים לוועידה לפי מדורים משויכים (מה-DB)
-@meetingRouter.get("/{meeting_uuid}/participants", status_code=200)
-def get_meeting_participants(meeting_uuid: str, session: Session = Depends(get_db), user=Depends(all_members_validator)):
-    meeting = session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
-    if not meeting:
-        raise HTTPException(status_code=404, detail="Meeting not found")
-    meeting_level = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
+# ---------------------------------------------------------------------------
+# Participants
+# ---------------------------------------------------------------------------
+def _authorized_participants(session: Session, meeting_number: str):
+    """משתמשים מורשים לפגישה: לפי המדורים המשויכים (group_meeting) וסוג הפגישה."""
+    service = MeetingService(session=session)
+    cs, cms_type = service._find_cospace(meeting_number)
+    if not cs:
+        return None  # לא נמצאה ב-CMS
+    group_uuids = service._groups_for(meeting_number, cms_type)
     users_seen = set()
     result = []
-    for group in meeting.groups:
+    for group_uuid in group_uuids:
+        group = session.query(Group).filter(Group.UUID == group_uuid).first()
+        if not group:
+            continue
         for member_access in group.member_access_levels:
             access_val = str(getattr(member_access.access_level, "value", member_access.access_level)).lower()
-            if access_val != meeting_level:
+            if access_val != cms_type:
                 continue
             u = session.query(User).filter(User.UUID == member_access.member_uuid).first()
             if u and str(u.UUID) not in users_seen:
                 users_seen.add(str(u.UUID))
                 result.append({
-                    "name": f"{u.first_name} {u.last_name}".strip() if hasattr(u, "first_name") else u.s_id,
+                    "name": u.username or u.s_id,
+                    "legId": str(u.UUID),
                     "username": u.s_id,
                     "role": str(getattr(u.role, "value", u.role)),
                     "group": group.name,
                 })
-    return {"meeting_number": meeting.m_number, "participants": result}
+    return result
 
-@meetingRouter.get("/{meeting_uuid}/live-participants", status_code=200)
-def get_meeting_live_participants(meeting_uuid: str, session: Session = Depends(get_db), user=Depends(all_members_validator)):
-    meeting = session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
-    if not meeting:
+
+@meetingRouter.get("/{meeting_number}/participants", status_code=200)
+def get_meeting_participants(meeting_number: str, session: Session = Depends(get_db), user=Depends(all_members_validator)):
+    participants = _authorized_participants(session, meeting_number)
+    if participants is None:
         raise HTTPException(status_code=404, detail="Meeting not found")
-    meeting_level = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
-    status_map = {
-        str(s.user_uuid): s
-        for s in session.query(MeetingParticipantStatus).filter(
-            MeetingParticipantStatus.meeting_uuid == meeting_uuid
-        ).all()
-    }
-    users_seen = set()
-    result = []
-    for group in meeting.groups:
-        for member_access in group.member_access_levels:
-            access_val = str(getattr(member_access.access_level, "value", member_access.access_level)).lower()
-            if access_val != meeting_level:
-                continue
-            u = session.query(User).filter(User.UUID == member_access.member_uuid).first()
-            if u and str(u.UUID) not in users_seen:
-                users_seen.add(str(u.UUID))
-                st = status_map.get(str(u.UUID))
-                if st and st.is_kicked:
-                    continue
-                result.append({
-                    "name": f"{u.first_name} {u.last_name}".strip() if hasattr(u, "first_name") else u.s_id,
-                    "legId": str(u.UUID),
-                    "username": u.s_id,
-                    "state": "connected",
-                    "mute": str(st.is_muted).lower() if st else "false",
-                    "group": group.name,
-                })
-    return {"meeting_number": meeting.m_number, "call_id": None, "participants": result}
+    return {"meeting_number": meeting_number, "participants": participants}
 
-@meetingRouter.post("/{meeting_uuid}/mute", status_code=200)
-def mute_meeting_participant(meeting_uuid: str, body: dict, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+
+@meetingRouter.get("/{meeting_number}/live-participants", status_code=200)
+def get_meeting_live_participants(meeting_number: str, session: Session = Depends(get_db), user=Depends(all_members_validator)):
+    """משתתפים חיים בשיחה מה-CMS (real leg ids)."""
+    service = MeetingService(session=session)
+    cs, cms_type = service._find_cospace(meeting_number)
+    if not cs:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+    try:
+        cms = CMS(cms_type=cms_type)
+        active_calls = cms.get_active_calls()
+        active = next((c for c in active_calls if str(c.get("name", "")) == str(meeting_number)), None)
+        if not active:
+            return {"meeting_number": meeting_number, "call_id": None, "participants": []}
+        call_id = active.get("id") or active.get("@id")
+        parts = cms.get_call_participants(call_id)
+        result = []
+        for p in parts:
+            leg_id = p.get("legId") or p.get("@id") or p.get("id")
+            result.append({
+                "name": p.get("name") or p.get("remoteParty") or "—",
+                "legId": leg_id,
+                "state": p.get("state") or p.get("status") or "connected",
+                "mute": str(p.get("audioMuted", p.get("mute", "false"))).lower(),
+            })
+        return {"meeting_number": meeting_number, "call_id": call_id, "participants": result}
+    except Exception as error:
+        LoggerManager.get_logger().warning("Failed to fetch live participants for %s: %s", meeting_number, str(error))
+        return {"meeting_number": meeting_number, "call_id": None, "participants": []}
+
+
+@meetingRouter.post("/{meeting_number}/mute", status_code=200)
+def mute_meeting_participant(meeting_number: str, body: dict, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     leg_id = body.get("leg_id")
     call_id = body.get("call_id")
     mute = body.get("mute", True)
-    if not leg_id:
-        raise HTTPException(status_code=400, detail="leg_id is required")
-    
-    meeting = session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
-    if not meeting:
+    if not leg_id or not call_id:
+        raise HTTPException(status_code=400, detail="leg_id and call_id are required")
+    _, cms_type = MeetingService(session=session)._find_cospace(meeting_number)
+    if not cms_type:
         raise HTTPException(status_code=404, detail="Meeting not found")
-    
-    cms_success = False
-    if call_id:
-        try:
-            cms_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
-            cms = CMS(cms_type=cms_type)
-            cms_success = cms.mute_participant_by_leg_id(call_id, leg_id, bool(mute))
-        except Exception as cms_error:
-            LoggerManager.get_logger().warning("CMS mute failed for meeting %s leg %s: %s", meeting_uuid, leg_id, str(cms_error))
     try:
-        st = session.query(MeetingParticipantStatus).filter(
-            MeetingParticipantStatus.meeting_uuid == meeting_uuid,
-            MeetingParticipantStatus.user_uuid == leg_id,
-        ).first()
-        if st:
-            st.is_muted = bool(mute)
-        else:
-            st = MeetingParticipantStatus(
-                meeting_uuid=meeting_uuid,
-                user_uuid=leg_id,
-                is_muted=bool(mute),
-                is_kicked=False,
-            )
-            session.add(st)
-        session.commit()
+        cms_success = CMS(cms_type=cms_type).mute_participant_by_leg_id(call_id, leg_id, bool(mute))
         return {"success": True, "cms": cms_success}
     except Exception as error:
-        session.rollback()
-        raise HTTPException(status_code=500, detail=str(error))
+        LoggerManager.get_logger().warning("CMS mute failed for meeting %s leg %s: %s", meeting_number, leg_id, str(error))
+        raise HTTPException(status_code=502, detail=f"CMS error: {str(error)}")
 
-@meetingRouter.post("/{meeting_uuid}/kick", status_code=200)
-def kick_meeting_participant(meeting_uuid: str, body: dict, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+
+@meetingRouter.post("/{meeting_number}/kick", status_code=200)
+def kick_meeting_participant(meeting_number: str, body: dict, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     leg_id = body.get("leg_id")
     call_id = body.get("call_id")
-    if not leg_id:
-        raise HTTPException(status_code=400, detail="leg_id is required")
-    
-    meeting = session.query(Meeting).filter(Meeting.UUID == meeting_uuid).first()
-    if not meeting:
+    if not leg_id or not call_id:
+        raise HTTPException(status_code=400, detail="leg_id and call_id are required")
+    _, cms_type = MeetingService(session=session)._find_cospace(meeting_number)
+    if not cms_type:
         raise HTTPException(status_code=404, detail="Meeting not found")
-    
-    cms_success = False
-    if call_id:
-        try:
-            cms_type = str(getattr(meeting.accessLevel, "value", meeting.accessLevel)).lower()
-            cms = CMS(cms_type=cms_type)
-            cms_success = cms.kick_participant_by_leg_id(call_id, leg_id)
-        except Exception as cms_error:
-            LoggerManager.get_logger().warning("CMS kick failed for meeting %s leg %s: %s", meeting_uuid, leg_id, str(cms_error))
     try:
-        st = session.query(MeetingParticipantStatus).filter(
-            MeetingParticipantStatus.meeting_uuid == meeting_uuid,
-            MeetingParticipantStatus.user_uuid == leg_id,
-        ).first()
-        if st:
-            st.is_kicked = True
-        else:
-            st = MeetingParticipantStatus(
-                meeting_uuid=meeting_uuid,
-                user_uuid=leg_id,
-                is_muted=False,
-                is_kicked=True,
-            )
-            session.add(st)
-        session.commit()
+        cms_success = CMS(cms_type=cms_type).kick_participant_by_leg_id(call_id, leg_id)
         return {"success": True, "cms": cms_success}
     except Exception as error:
-        session.rollback()
-        raise HTTPException(status_code=500, detail=str(error))
+        LoggerManager.get_logger().warning("CMS kick failed for meeting %s leg %s: %s", meeting_number, leg_id, str(error))
+        raise HTTPException(status_code=502, detail=f"CMS error: {str(error)}")
 
-# --- GET /meetings/{{meeting_uuid}} ---
-# שליפת פגישה בודדת עם בדיקת הרשאות לפי role
-@meetingRouter.get("/{meeting_uuid}", status_code=200, response_model=MeetingOutput)
-def get_meeting_by_uuid(meeting_uuid: str = Path(..., pattern=r"^[0-9a-fA-F-]{36}$"), session: Session = Depends(get_db), user=Depends(validator)):
+
+# --- GET /meetings/{meeting_number} ---
+@meetingRouter.get("/{meeting_number}", status_code=200, response_model=MeetingOutput)
+def get_meeting_by_number_single(meeting_number: str, session: Session = Depends(get_db), user=Depends(validator)):
     user_role = getattr(user.role, "value", user.role)
     try:
-        LoggerManager.get_logger().info(
-            "User %s:%s with role %s requested meeting by UUID=%s",
-            user.s_id, user.UUID, user_role, meeting_uuid,
-        )
-        return MeetingService(session=session).get_meeting_by_uuid_for_user(
-            meeting_uuid=meeting_uuid,
+        return MeetingService(session=session).get_meeting_by_number_for_user(
+            number=meeting_number,
             user_uuid=str(user.UUID),
             user_role=user_role,
         )
-    except HTTPException as http_error:
-        LoggerManager.get_logger().warning(
-            "User %s:%s with role %s failed to access meeting UUID=%s: %s",
-            user.s_id, user.UUID, user_role, meeting_uuid, http_error.detail,
-        )
-        raise http_error
+    except HTTPException:
+        raise
     except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to fetch meeting UUID=%s for user %s:%s role=%s. Error: %s",
-            meeting_uuid, user.s_id, user.UUID, user_role, str(error),
-        )
+        LoggerManager.get_logger().exception("Failed to fetch meeting number=%s. Error: %s", meeting_number, str(error))
         raise HTTPException(status_code=500, detail="Internal Server Error")
-

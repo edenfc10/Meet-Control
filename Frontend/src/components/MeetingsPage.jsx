@@ -185,54 +185,6 @@ export default function MeetingsPage({
   const [editError, setEditError] = useState("");
   const [saving, setSaving] = useState(false);
   const [favoriteBusyId, setFavoriteBusyId] = useState(null);
-  const [cmsCreateBusyId, setCmsCreateBusyId] = useState(null);
-  const [cmsSyncBusyId, setCmsSyncBusyId] = useState(null);
-  const [cmsImporting, setCmsImporting] = useState(false);
-
-  const handleCmsImport = async () => {
-    setCmsImporting(true);
-    try {
-      const resp = await meetingAPI.cmsImport();
-      const d = resp.data;
-      const msg = isHebrew
-        ? `יובאו: ${d.imported.length} פגישות\nדולגו: ${d.skipped.length}\nשגיאות: ${d.errors.length}`
-        : `Imported: ${d.imported.length} meetings\nSkipped: ${d.skipped.length}\nErrors: ${d.errors.length}`;
-      alert(msg);
-      if (d.imported.length > 0 && onRefresh) onRefresh();
-    } catch (err) {
-      alert(isHebrew ? `שגיאה בייבוא: ${err?.response?.data?.detail || err.message}` : `Import error: ${err?.response?.data?.detail || err.message}`);
-    } finally {
-      setCmsImporting(false);
-    }
-  };
-
-  const handleCmsCreate = async (meeting) => {
-    setCmsCreateBusyId(meeting.dbId);
-    try {
-      await meetingAPI.cmsCreate(meeting.dbId);
-      alert(isHebrew ? `הפגישה "${meeting.name || meeting.meetingId}" נוצרה בהצלחה בשרת CMS.` : `Meeting "${meeting.name || meeting.meetingId}" created on CMS successfully.`);
-    } catch (err) {
-      alert(isHebrew ? `שגיאה ביצירה בשרת: ${err?.response?.data?.detail || err.message}` : `CMS error: ${err?.response?.data?.detail || err.message}`);
-    } finally {
-      setCmsCreateBusyId(null);
-    }
-  };
-
-  const handleCmsSync = async (meeting) => {
-    setCmsSyncBusyId(meeting.dbId);
-    try {
-      const resp = await meetingAPI.cmsSync(meeting.dbId);
-      const d = resp.data;
-      const msg = isHebrew
-        ? `פגישה: ${d.name || d.meeting_number}\nסטטוס: ${d.is_active ? "פעילה ✅" : "לא פעילה ❌"}\nמשתתפים: ${d.participant_count}`
-        : `Meeting: ${d.name || d.meeting_number}\nStatus: ${d.is_active ? "Active ✅" : "Inactive ❌"}\nParticipants: ${d.participant_count}`;
-      alert(msg);
-    } catch (err) {
-      alert(isHebrew ? `שגיאה בסנכרון: ${err?.response?.data?.detail || err.message}` : `Sync error: ${err?.response?.data?.detail || err.message}`);
-    } finally {
-      setCmsSyncBusyId(null);
-    }
-  };
 
   const handleViewParticipants = async (meeting) => {
     setParticipantsModal(meeting);
@@ -370,9 +322,9 @@ export default function MeetingsPage({
     if (searchField === "number")
       return (m.meetingId || "").toLowerCase().includes(query);
     if (searchField === "name")
-      return (m.name || "").toLowerCase().includes(query);
+      return (m.name || "").toLowerCase().startsWith(query);
     if (searchField === "name_or_number") {
-      const nameMatch = (m.name || "").toLowerCase().includes(query);
+      const nameMatch = (m.name || "").toLowerCase().startsWith(query);
       const numberMatch = (m.meetingId || "").toLowerCase().includes(query);
       return nameMatch || numberMatch;
     }
@@ -470,19 +422,13 @@ export default function MeetingsPage({
     setCreating(true);
     setCreateError("");
     try {
-      const created = await meetingAPI.createMeeting({
+      // הבאקנד יוצר גם ב-CMS (write-through) — אין צורך בקריאה נפרדת
+      await meetingAPI.createMeeting({
         name: name.trim(),
         m_number: mNumber.trim(),
         accessLevel,
         ...(password.trim() ? { password: password.trim() } : {}),
       });
-      if (accessLevel !== "blast_dial" && created?.data?.UUID) {
-        try {
-          await meetingAPI.cmsCreate(created.data.UUID);
-        } catch (cmsErr) {
-          setCreateError(isHebrew ? `הפגישה נוצרה ב-DB אך שגיאה בשרת CMS: ${cmsErr?.response?.data?.detail || cmsErr.message}` : `Meeting saved but CMS error: ${cmsErr?.response?.data?.detail || cmsErr.message}`);
-        }
-      }
       setMNumber("");
       setName("");
       setPassword("");
@@ -498,11 +444,10 @@ export default function MeetingsPage({
   const handleEditSave = async (meeting) => {
     setSaving(true);
     setEditError("");
+    const newPassword = editPassword.trim() || null;
     try {
-      await meetingAPI.updateMeetingPassword(
-        meeting.dbId,
-        editPassword.trim() || null,
-      );
+      // הבאקנד מעדכן גם ב-CMS (write-through) — אין צורך בקריאה נפרדת
+      await meetingAPI.updateMeetingPassword(meeting.dbId, newPassword);
       setEditId(null);
       setEditPassword("");
       showToast(isHebrew ? "סיסמא עודכנה בהצלחה" : "Password updated successfully");
@@ -530,6 +475,7 @@ export default function MeetingsPage({
     setDeletingId(meetingToDelete.dbId);
     setDeleteError("");
     try {
+      // הבאקנד מוחק גם מה-CMS (write-through) — קריאה אחת מוחקת משני המקומות
       await meetingAPI.deleteMeeting(meetingToDelete.dbId);
       if (editId === meetingToDelete.dbId) {
         setEditId(null);

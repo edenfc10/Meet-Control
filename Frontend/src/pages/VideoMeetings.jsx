@@ -10,7 +10,7 @@ export default function VideoMeetings({ language = "en" }) {
 
   const getFavoriteIdSet = async () => {
     const resp = await favoriteAPI.getFavoriteMeetings();
-    const ids = (resp.data || []).map((m) => m.meeting_uuid);
+    const ids = (resp.data || []).map((m) => String(m.m_number || ""));
     return new Set(ids);
   };
 
@@ -18,9 +18,7 @@ export default function VideoMeetings({ language = "en" }) {
     try {
       setLoading(true);
       setError("");
-      // סנכרון מהשרת CMS לפני הטעינה מה-DB
-      try { await meetingAPI.cmsImport(); } catch (_) {}
-      // הסינון מתבצע בבאקנד לפי access_level=video
+      // הסנכרון מול ה-CMS מתבצע בבאקנד (reconcile) — הסינון לפי access_level=video
       const [response, favoriteSet] = await Promise.all([
         meetingAPI.getAllMeetings("video"),
         getFavoriteIdSet(),
@@ -28,8 +26,8 @@ export default function VideoMeetings({ language = "en" }) {
       const all = response.data || [];
       setMeetings(
         all.map((m) => ({
-          id: m.UUID,
-          dbId: m.UUID,
+          id: m.m_number,
+          dbId: m.m_number,
           meetingId: String(m.m_number || ""),
           name: m.name || "",
           accessLevel: m.accessLevel || "video",
@@ -37,7 +35,7 @@ export default function VideoMeetings({ language = "en" }) {
           group: m.groups?.length ? m.groups[0] : "",
           participantCount: m.participant_count ?? 0,
           status: "",
-          isFavorite: favoriteSet.has(m.UUID),
+          isFavorite: favoriteSet.has(String(m.m_number || "")),
           onToggleFavorite: async (meeting) => {
             if (meeting.isFavorite) {
               await favoriteAPI.removeFavoriteMeeting(meeting.dbId);

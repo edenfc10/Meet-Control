@@ -47,15 +47,15 @@ class MeetingPasswordUpdate(BaseModel):
 
 
 # --- MeetingOutput ---
+# הפגישה חיה ב-CMS. הזהות בכל המערכת היא m_number (ה-URI ב-CMS).
 class MeetingOutput(BaseModel):
-    UUID: UUID
-    m_number: str
+    id: Optional[str] = None                                      # מזהה ה-coSpace ב-CMS (לעיון בלבד)
+    m_number: str                                                 # מספר הפגישה — המזהה בכל המערכת
     name: Optional[str] = None
     accessLevel: MeetingRole
     password: Optional[str] = None
-    groups: Optional[List[UUID]] = Field(default_factory=list)
+    groups: Optional[List[UUID]] = Field(default_factory=list)    # UUIDs של מדורים משויכים
     participant_count: int = 0
-   
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 

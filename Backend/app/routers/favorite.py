@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, Path
+from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
@@ -13,9 +13,9 @@ favoriteRouter = APIRouter()
 all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent", "viewer"])
 
 
-@favoriteRouter.post("/meetings/{meeting_uuid}", status_code=200, response_model=FavoriteToggleResponse)
+@favoriteRouter.post("/meetings/{meeting_number}", status_code=200, response_model=FavoriteToggleResponse)
 def add_meeting_to_favorites(
-    meeting_uuid: str = Path(..., pattern=r"^[0-9a-fA-F-]{36}$"),
+    meeting_number: str,
     session: Session = Depends(get_db),
     user=Depends(all_members_validator),
 ):
@@ -24,15 +24,15 @@ def add_meeting_to_favorites(
         FavoriteMeetingService(session=session).add_favorite(
             user_uuid=str(user.UUID),
             user_role=str(user_role),
-            meeting_uuid=meeting_uuid,
+            meeting_number=meeting_number,
         )
         return {"detail": "Meeting added to favorites"}
     except HTTPException as http_error:
         raise http_error
     except Exception as error:
         LoggerManager.get_logger().exception(
-            "Failed to add meeting UUID=%s to favorites for user %s:%s role=%s. Error: %s",
-            meeting_uuid,
+            "Failed to add meeting number=%s to favorites for user %s:%s role=%s. Error: %s",
+            meeting_number,
             user.s_id,
             user.UUID,
             user_role,
@@ -41,24 +41,24 @@ def add_meeting_to_favorites(
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 
-@favoriteRouter.delete("/meetings/{meeting_uuid}", status_code=200, response_model=FavoriteToggleResponse)
+@favoriteRouter.delete("/meetings/{meeting_number}", status_code=200, response_model=FavoriteToggleResponse)
 def remove_meeting_from_favorites(
-    meeting_uuid: str = Path(..., pattern=r"^[0-9a-fA-F-]{36}$"),
+    meeting_number: str,
     session: Session = Depends(get_db),
     user=Depends(all_members_validator),
 ):
     try:
         FavoriteMeetingService(session=session).remove_favorite(
             user_uuid=str(user.UUID),
-            meeting_uuid=meeting_uuid,
+            meeting_number=meeting_number,
         )
         return {"detail": "Meeting removed from favorites"}
     except HTTPException as http_error:
         raise http_error
     except Exception as error:
         LoggerManager.get_logger().exception(
-            "Failed to remove meeting UUID=%s from favorites for user %s:%s. Error: %s",
-            meeting_uuid,
+            "Failed to remove meeting number=%s from favorites for user %s:%s. Error: %s",
+            meeting_number,
             user.s_id,
             user.UUID,
             str(error),

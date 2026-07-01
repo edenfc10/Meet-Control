@@ -18,6 +18,7 @@ import uuid
 from .base import BaseRepository
 from app.models.user import User
 from app.models.group import Group
+from app.models.meeting import GroupMeeting
 
 from app.schema.user import UserInCreate, UserInCreateNoRole, UserOutput
 from app.models.member_group_access import MemberGroupAccess, MemberGroupAccessLevel
@@ -146,8 +147,8 @@ class UserRepository(BaseRepository):
         # ×©×œ×™×¤×ª ×”×§×©×¨×™× ×©×œ ×”×ž×©×ª×ž×© ×‘×ž×“×•×¨ ×”× ×ª×•×Ÿ
         connections = self.session.query(MemberGroupAccess).filter(MemberGroupAccess.member_uuid == user_uuid, MemberGroupAccess.group_uuid == group_uuid).all()
         # יצירת רשימת רמות הגישה המותרות
-        access_allowed = [conn.access_level for conn in connections]
+        access_allowed = {str(getattr(conn.access_level, "value", conn.access_level)) for conn in connections}
 
         # ×¡×™× ×•×Ÿ ×¤×’×™×©×•×ª - ×ž×—×–×™×¨ ×¨×§ ×¤×’×™×©×•×ª ×©×”×¡×•×’ ×©×œ×”×Ÿ ×ª×•×× ×œ×¨×ž×ª ×”×’×™×©×”
-        meetings = self.session.query(Group).filter(Group.UUID == group_uuid).first().meetings
-        return [str(meeting.UUID) for meeting in meetings if meeting.accessLevel in access_allowed]
+        links = self.session.query(GroupMeeting).filter(GroupMeeting.group_uuid == group_uuid).all()
+        return [link.meeting_number for link in links if link.access_level in access_allowed]

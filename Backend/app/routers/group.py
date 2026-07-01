@@ -226,17 +226,17 @@ def remove_member_access_from_group(
 
 # --- POST /groups/{uuid}/add-meeting/{meeting_uuid} ---
 # משייך פגישה קיימת לקבוצה
-@groupRouter.post("/{group_uuid}/add-meeting/{meeting_uuid}", status_code=200, response_model=GroupOutput)
-def add_meeting_to_group(group_uuid: str, meeting_uuid: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+@groupRouter.post("/{group_uuid}/add-meeting/{meeting_number}", status_code=200, response_model=GroupOutput)
+def add_meeting_to_group(group_uuid: str, meeting_number: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
         LoggerManager.get_logger().info(
-            "User %s:%s with role %s is adding meeting UUID=%s to group UUID=%s",
-            user.s_id, user.UUID, user.role.value, meeting_uuid, group_uuid,
+            "User %s:%s with role %s is adding meeting number=%s to group UUID=%s",
+            user.s_id, user.UUID, user.role.value, meeting_number, group_uuid,
         )
         user_role = str(getattr(user.role, "value", user.role)).lower().strip()
         return GroupService(session=session).add_meeting_to_group(
             group_uuid=group_uuid,
-            meeting_uuid=meeting_uuid,
+            meeting_number=meeting_number,
             requester_uuid=str(user.UUID),
             requester_role=user_role,
         )
@@ -244,24 +244,24 @@ def add_meeting_to_group(group_uuid: str, meeting_uuid: str, session: Session = 
         raise http_error
     except Exception as error:
         LoggerManager.get_logger().exception(
-            "Failed to add meeting UUID=%s to group UUID=%s. Error: %s", meeting_uuid, group_uuid, str(error),
+            "Failed to add meeting number=%s to group UUID=%s. Error: %s", meeting_number, group_uuid, str(error),
         )
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
-# --- POST /groups/{uuid}/remove-meeting/{meeting_uuid} ---
+# --- POST /groups/{uuid}/remove-meeting/{meeting_number} ---
 # מסיר שיוך פגישה מקבוצה
-@groupRouter.post("/{group_uuid}/remove-meeting/{meeting_uuid}", status_code=200, response_model=GroupOutput)
-def remove_meeting_from_group(group_uuid: str, meeting_uuid: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+@groupRouter.post("/{group_uuid}/remove-meeting/{meeting_number}", status_code=200, response_model=GroupOutput)
+def remove_meeting_from_group(group_uuid: str, meeting_number: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
         LoggerManager.get_logger().info(
-            "User %s:%s with role %s is removing meeting UUID=%s from group UUID=%s",
-            user.s_id, user.UUID, user.role.value, meeting_uuid, group_uuid,
+            "User %s:%s with role %s is removing meeting number=%s from group UUID=%s",
+            user.s_id, user.UUID, user.role.value, meeting_number, group_uuid,
         )
-        return GroupService(session=session).remove_meeting_from_group(group_uuid=group_uuid, meeting_uuid=meeting_uuid)
+        return GroupService(session=session).remove_meeting_from_group(group_uuid=group_uuid, meeting_number=meeting_number)
     except HTTPException as http_error:
         raise http_error
     except Exception as error:
         LoggerManager.get_logger().exception(
-            "Failed to remove meeting UUID=%s from group UUID=%s. Error: %s", meeting_uuid, group_uuid, str(error),
+            "Failed to remove meeting number=%s from group UUID=%s. Error: %s", meeting_number, group_uuid, str(error),
         )
         raise HTTPException(status_code=500, detail="Internal Server Error")

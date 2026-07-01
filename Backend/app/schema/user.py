@@ -58,7 +58,7 @@ class GroupOutput(BaseModel):
     UUID: UUID                                                                     # מזהה המדור
     name: str                                                                      # ×©× ×”×ž×“×•×¨
     members: Optional[List[UUID]] = Field(default_factory=list)                    # ×¨×©×™×ž×ª UUIDs ×©×œ ×”×—×‘×¨×™×
-    meetings: Optional[List[UUID]] = Field(default_factory=list)                   # רשימת UUIDs של הפגישות
+    meetings: Optional[List[str]] = Field(default_factory=list)                    # רשימת מספרי הפגישות המשויכות
     member_access_levels: Optional[List[MemberAccessOutput]] = Field(default_factory=list)  # רמות גישה לכל חבר
 
 

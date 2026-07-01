@@ -16,8 +16,8 @@ class FavoriteMeetingParticipant(BaseModel):
 
 
 class FavoriteMeetingOutput(BaseModel):
-    meeting_uuid: UUID
-    m_number: str
+    m_number: str                                                # מספר הפגישה — המזהה בכל המערכת
+    name: str | None = None
     accessLevel: MeetingRole
     password: str | None = None
     groups: List[UUID] = Field(default_factory=list)

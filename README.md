@@ -3,7 +3,7 @@
 **Meet Manager** הוא מערכת ניהול ועידות פנים-ארגונית מבוססת הרשאות תפקיד.  
 המערכת מאפשרת לאדמינים לנהל מדורים, משתמשים וחדרי ועידה וירטואליים — עם בקרת גישה מפורטת ברמת המדור.
 
-הבקאנד מתחבר לשני שרתי **CMS (Cisco Meeting Server)** — אחד ל-Audio ואחד ל-Video — לצורך מידע על שיחות חיות, יצירת CoSpaces, וסנכרון פגישות אוטומטי. הוא מנהל מסד נתונים PostgreSQL עצמאי למשתמשים, מדורים ובקרת גישה.
+המערכת מבוססת על **CMS-First Architecture** — הפגישות חיות אך ורק בשרתי Cisco Meeting Server (CMS), וה-DB משמש כ-overlay לנתוני הרשאות, מדורים, ומועדפים. הבקאנד מתחבר לשני שרתי CMS — אחד ל-Audio ואחד ל-Video — לצורך יצירת CoSpaces, ניהול סיסמאות, ומעקב אחר שיחות חיות.
 
 ---
 
@@ -56,13 +56,14 @@ Browser (React/Vite → host port :3000)
   ▼
 FastAPI Backend (:8001, mapped to container port 8000)
   │
-  ├── SQLAlchemy ORM ──► PostgreSQL (:5432)  [users / groups / meetings / access control]
+  ├── SQLAlchemy ORM ──► PostgreSQL (:5432)  [users / groups / permissions / favorites]
+  │                                               (overlay data only)
   │
   ├── HTTP ────────────► CMS Audio Server (https://192.168.20.200:445/api/v1)
-  │                       [audio CoSpaces + live calls]
+  │                       [audio CoSpaces + live calls + passwords]
   │
   └── HTTP ────────────► CMS Video Server (https://192.168.20.201:445/api/v1)
-                          [video CoSpaces + live calls]
+                          [video CoSpaces + live calls + passwords]
 
 Production (standalone stack)
 Browser
@@ -81,7 +82,19 @@ Nginx :3000  (serves React build + reverse proxy)
 
 In **development**, the Vite dev server runs inside Docker, exposed on host port `:3000` (remapped from container port `:5173` due to WSL2 networking). The backend is accessible on host port `:8001`.
 
-The **dual CMS** setup routes all audio meetings to the audio CMS server and all video meetings to the video CMS server. `blast_dial` meetings are excluded from CMS interactions entirely.
+### CMS-First Architecture
+
+The system now uses a **CMS-First Architecture**:
+
+- **Meetings live in CMS only** — CoSpaces are the single source of truth for meeting data
+- **Database is an overlay** — stores only:
+  - User permissions and group memberships
+  - Meeting-to-group associations (via `GroupMeeting` table)
+  - User favorites (via `FavoriteMeeting` table)
+- **Write-through pattern** — create/update/delete operations automatically sync to CMS
+- **Read-through pattern** — meeting data is fetched from CMS and enriched with overlay data
+
+The **dual CMS** setup routes all audio meetings to the audio CMS server and all video meetings to the video CMS server. `blast_dial` meetings are excluded from CMS interactions entirely (not yet supported).
 
 ---
 
@@ -443,35 +456,33 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 | DELETE | `/groups/{group_uuid}`                                           | admin, super_admin                       | Delete a group                                                          |
 | POST   | `/groups/{group_uuid}/add-member/{user_uuid}?access_level=audio` | admin, super_admin, agent | Add user to group (admin restricted to their `responsible_access_level`) |
 | POST   | `/groups/{group_uuid}/remove-member/{user_uuid}`                 | admin, super_admin        | Remove user from group                                                  |
-| POST   | `/groups/{group_uuid}/add-meeting/{meeting_uuid}`                | admin, super_admin                       | Link a meeting to a group                                               |
-| POST   | `/groups/{group_uuid}/remove-meeting/{meeting_uuid}`             | admin, super_admin                       | Unlink a meeting from a group                                           |
+| POST   | `/groups/{group_uuid}/add-meeting/{meeting_number}`              | admin, super_admin       | Link a meeting to a group (by meeting number)                           |
+| POST   | `/groups/{group_uuid}/remove-meeting/{meeting_number}`           | admin, super_admin       | Unlink a meeting from a group (by meeting number)                       |
 
 ---
 
 ### Meetings
 
+**Important:** All meeting operations now use the meeting number (`m_number`) as the primary identifier, not UUID. The system is CMS-First — meetings live in CMS, DB stores only overlay data.
+
 | Method | Endpoint                                      | Auth               | Description                                                                    |
 | ------ | --------------------------------------------- | ------------------ | ------------------------------------------------------------------------------ |
-| GET    | `/meetings/all_meetings`                      | All roles          | Get meetings (supports `?access_level=` filter)                                |
-| GET    | `/meetings/{meeting_uuid}`                    | All roles          | Get a single meeting                                                           |
-| POST   | `/meetings/create_meeting`                    | super_admin only   | Create a meeting in DB — also creates CoSpace on CMS automatically             |
-| POST   | `/meetings/cms-import`                        | admin, super_admin | Import all CoSpaces from both CMS servers into DB (skips existing)             |
-| PUT    | `/meetings/{meeting_uuid}`                    | admin, super_admin | Update a meeting (name / password)                                             |
-| DELETE | `/meetings/{meeting_uuid}`                    | admin, super_admin | Delete a meeting from DB                                                       |
-| GET    | `/meetings/number/{number}`                   | admin, super_admin | Find meeting by number                                                         |
-| PUT    | `/meetings/number/{meeting_number}`           | admin, super_admin | Update meeting by number                                                       |
-| GET    | `/meetings/group/{group_uuid}`                | admin, super_admin | Get meetings for a group                                                       |
+| GET    | `/meetings/all_meetings`                      | All roles          | Get meetings from CMS (supports `?access_level=` filter, enriched with DB overlay) |
+| GET    | `/meetings/{meeting_number}`                  | All roles          | Get a single meeting by number (from CMS + DB overlay)                        |
+| GET    | `/meetings/number/{number}`                   | admin, super_admin | Find meeting by number (alias for above)                                        |
+| POST   | `/meetings/create_meeting`                    | super_admin only   | Create a meeting in CMS (write-through)                                        |
+| DELETE | `/meetings/{meeting_number}`                  | admin, super_admin | Delete a meeting from CMS + clean DB overlay (write-through)                    |
+| PUT    | `/meetings/password/{meeting_number}`          | All roles          | Update meeting password in CMS (write-through)                                 |
+| GET    | `/meetings/group/{group_uuid}`                | admin, super_admin | Get meeting numbers for a group (from DB)                                      |
 | GET    | `/meetings/live-status`                       | admin, super_admin | Live CMS stats: active calls + participants per meeting type                   |
-| GET    | `/meetings/{meeting_uuid}/participants`       | All roles          | Get authorized users for this meeting (from DB via group membership)           |
-| GET    | `/meetings/{meeting_uuid}/live-participants`  | admin, super_admin | Get live call participants from CMS                                            |
-| POST   | `/meetings/{meeting_uuid}/cms-create`         | admin, super_admin | Create a CoSpace on the CMS server for an existing DB meeting                  |
-| GET    | `/meetings/{meeting_uuid}/cms-sync`           | admin, super_admin | Get live CMS data for a meeting: active status, call ID, live participant count |
-| POST   | `/meetings/{meeting_uuid}/mute`               | admin, super_admin | Mute or unmute a live participant (`call_id`, `leg_id`, `mute`)                |
-| POST   | `/meetings/{meeting_uuid}/kick`               | admin, super_admin | Remove a live participant from a call (`call_id`, `leg_id`)                    |
+| GET    | `/meetings/{meeting_number}/participants`     | All roles          | Get authorized users for this meeting (from DB via group membership)           |
+| GET    | `/meetings/{meeting_number}/live-participants`| All roles          | Get live call participants from CMS                                            |
+| POST   | `/meetings/{meeting_number}/mute`             | admin, super_admin | Mute or unmute a live participant (`call_id`, `leg_id`, `mute`)                |
+| POST   | `/meetings/{meeting_number}/kick`             | admin, super_admin | Remove a live participant from a call (`call_id`, `leg_id`)                    |
 
 > `participants` returns all users who are members of a group linked to this meeting, filtered by matching access level.  
-> `cms-import` is called automatically by the frontend on page load — no manual action needed.  
-> `blast_dial` meetings are excluded from all CMS endpoints.
+> `blast_dial` meetings are not yet supported in CMS-First architecture.  
+> All create/update/delete operations automatically sync to CMS (write-through pattern).
 
 **Create meeting request body:**
 
@@ -484,13 +495,21 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 }
 ```
 
+**Update password request body:**
+
+```json
+{
+  "password": "new-password"
+}
+```
+
 ### Favorites
 
-| Method | Endpoint                             | Auth      | Description                                                         |
-| ------ | ------------------------------------ | --------- | ------------------------------------------------------------------- |
-| GET    | `/favorites/meetings`                | All roles | List current user's favorite meetings (with password, participants) |
-| POST   | `/favorites/meetings/{meeting_uuid}` | All roles | Add a visible meeting to favorites                                  |
-| DELETE | `/favorites/meetings/{meeting_uuid}` | All roles | Remove a meeting from favorites                                     |
+| Method | Endpoint                                | Auth      | Description                                                         |
+| ------ | --------------------------------------- | --------- | ------------------------------------------------------------------- |
+| GET    | `/favorites/meetings`                   | All roles | List current user's favorite meetings (with password, participants) |
+| POST   | `/favorites/meetings/{meeting_number}`  | All roles | Add a visible meeting to favorites                                  |
+| DELETE | `/favorites/meetings/{meeting_number}`  | All roles | Remove a meeting from favorites                                     |
 
 ### Logs
 
@@ -523,33 +542,45 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 | UUID | UUID PK | Auto-generated |
 | name | String UNIQUE | Group name |
 
-**meetings**
-| Column | Type | Notes |
-|---|---|---|
-| UUID | UUID PK | Auto-generated |
-| m_number | String UNIQUE | Meeting room number |
-| accessLevel | Enum | audio / video / blast_dial |
-| password | String nullable | Conference password |
-
 **member_group_access**  
 Composite primary key `(member_uuid, group_uuid, access_level)` — controls what a user can see in a specific group.
 
 **user_group_association**  
 Many-to-many join table between users and groups.
 
-**meeting_group_association**  
-Many-to-many join table between meetings and groups.
+**group_meeting** (new - replaces meeting_group_association)
+| Column | Type | Notes |
+|---|---|---|
+| group_uuid | UUID FK | Group UUID |
+| meeting_number | String | Meeting number (from CMS) |
+| access_level | String | audio / video - matches meeting type |
+| Composite PK | (group_uuid, meeting_number, access_level) | |
 
-**favorite_meetings**  
-Join table between users and meetings for personal favorites (`member_uuid`, `meeting_uuid`, `created_at`, unique by user+meeting).
+**favorite_meeting** (updated - now uses meeting_number)
+| Column | Type | Notes |
+|---|---|---|
+| user_uuid | UUID FK | User UUID |
+| meeting_number | String | Meeting number (from CMS) |
+| access_level | String | audio / video - matches meeting type |
+| created_at | Timestamp | When favorited |
+| Composite PK | (user_uuid, meeting_number, access_level) | |
 
 ### Relationships
 
 ```
 User ——< user_group_association >—— Group
 User ——< member_group_access >————  Group (with access_level)
-Group —< meeting_group_association >—— Meeting
+Group —< group_meeting >——————— Meeting (by meeting_number + access_level)
+User ——< favorite_meeting >————— Meeting (by meeting_number + access_level)
 ```
+
+### Key Changes from Previous Architecture
+
+- **Removed `meetings` table** — meeting data now lives in CMS only
+- **Removed `meeting_group_association`** — replaced by `group_meeting` with meeting_number
+- **Removed `meeting_participant_status`** — live participant tracking now done via CMS
+- **Updated `favorite_meeting`** — now uses meeting_number instead of UUID
+- **Added `group_meeting`** — stores meeting-to-group associations by meeting_number and access_level
 
 ---
 
@@ -747,19 +778,24 @@ The system connects to **two separate CMS servers** — one for audio meetings, 
 |-------------|----------------------|-----------------|
 | `audio`     | Audio CMS            | `CMS_AUDIO_URL` |
 | `video`     | Video CMS            | `CMS_VIDEO_URL` |
-| `blast_dial`| **Not used** — excluded from all CMS calls | — |
+| `blast_dial`| **Not supported** — excluded from all CMS calls | — |
 
-### Auto-sync flow
+### CMS-First data flow
 
-Every time a user opens the Audio Meetings or Video Meetings page:
-
+**Read operations:**
 ```
-1. Frontend calls POST /meetings/cms-import
-2. Backend queries both CMS servers → GET /api/v1/coSpaces
-3. Each CoSpace is checked against the DB by meeting number (uri)
-4. New CoSpaces are created in the DB with the correct accessLevel
-5. Existing meetings are skipped (no duplicates)
-6. Frontend then fetches all meetings from DB and displays them
+1. Frontend requests meetings (e.g., GET /meetings/all_meetings)
+2. Backend queries CMS for CoSpaces (audio + video servers)
+3. Backend enriches with DB overlay data (groups, favorites, participant counts)
+4. Frontend displays enriched meeting data
+```
+
+**Write operations (create/update/delete):**
+```
+1. Frontend sends request to backend
+2. Backend performs operation on CMS (write-through)
+3. Backend updates DB overlay if needed (group associations, favorites)
+4. Response includes updated data from CMS
 ```
 
 ### Create meeting flow
@@ -767,9 +803,32 @@ Every time a user opens the Audio Meetings or Video Meetings page:
 When a super_admin creates a meeting via the UI:
 
 ```
-1. POST /meetings/create_meeting → saves meeting to DB
-2. POST /meetings/{uuid}/cms-create → creates CoSpace on matching CMS server
-3. Meeting appears in both DB and CMS
+1. POST /meetings/create_meeting → creates CoSpace on CMS
+2. Backend validates meeting number doesn't already exist
+3. CMS returns created CoSpace details
+4. Meeting data is returned from CMS (no DB storage of meeting data)
+```
+
+### Update password flow
+
+When a user updates a meeting password:
+
+```
+1. PUT /meetings/password/{meeting_number} → updates passcode on CMS
+2. Backend finds CoSpace by meeting number
+3. CMS updates the passcode
+4. Updated CoSpace data is returned
+```
+
+### Delete meeting flow
+
+When an admin deletes a meeting:
+
+```
+1. DELETE /meetings/{meeting_number} → deletes CoSpace from CMS
+2. Backend removes CoSpace from CMS
+3. Backend cleans up DB overlay (group associations, favorites)
+4. Success response returned
 ```
 
 ### API prefix
@@ -780,6 +839,85 @@ The CMS REST API is served under `/api/v1` (not the root path). This is configur
 https://192.168.20.200:445/api/v1/coSpaces  ← correct
 https://192.168.20.200:445/coSpaces         ← returns 404
 ```
+
+### CMS API format
+
+The CMS service now uses **form data** instead of XML for create/update operations:
+
+```python
+# Create CoSpace
+form_data = {"name": name, "uri": uri, "passcode": passcode}
+response = session.post(url, data=form_data)
+
+# Update passcode
+form_data = {"passcode": passcode}
+response = session.put(url, data=form_data)
+```
+
+This change was made because the CMS API was not accepting XML payloads correctly, returning empty responses.
+
+---
+
+## Recent Changes (July 1, 2026)
+
+### Major Architecture Migration: CMS-First
+
+The system was migrated from a DB-first architecture to a **CMS-First architecture**. This is a significant change that affects how meetings are stored and managed.
+
+**Key changes:**
+
+1. **Meetings now live in CMS only**
+   - Removed the `meetings` table from the database
+   - CoSpaces in Cisco Meeting Server are now the single source of truth
+   - Database serves as overlay for permissions, groups, and favorites only
+
+2. **Meeting identification changed from UUID to meeting number**
+   - All API endpoints now use `m_number` (meeting number) instead of UUID
+   - Updated all meeting-related endpoints to use `/meetings/{meeting_number}` pattern
+   - Frontend updated to use meeting numbers for all operations
+
+3. **Database schema changes**
+   - Removed: `meetings` table, `meeting_group_association` table, `meeting_participant_status` table
+   - Added: `group_meeting` table (stores meeting_number + access_level)
+   - Updated: `favorite_meeting` table (now uses meeting_number instead of UUID)
+
+4. **API endpoint changes**
+   - Removed: `/meetings/{uuid}/cms-create`, `/meetings/{uuid}/cms-delete`, `/meetings/{uuid}/cms-password`, `/meetings/{uuid}/cms-sync`, `/meetings/cms-import`
+   - Added: `/meetings/{meeting_number}` (get single meeting), `/meetings/password/{meeting_number}` (update password)
+   - Updated: All meeting endpoints now use meeting_number as identifier
+   - Write-through pattern: create/update/delete operations automatically sync to CMS
+
+5. **CMS integration changes**
+   - Changed from XML to form data for CMS API calls
+   - CMS service now uses `session.post(url, data=form_data)` instead of XML payloads
+   - This was necessary because CMS was not accepting XML payloads correctly
+
+6. **Frontend changes**
+   - Removed separate CMS create/sync/delete buttons (now automatic via write-through)
+   - Updated search to use `startsWith` for name search (prefix matching only)
+   - Removed CMS-specific API calls from frontend service
+   - All meeting operations now go through the main backend endpoints
+
+7. **Removed code**
+   - `Backend/app/repository/meetingRepo.py` - no longer needed
+   - `Backend/app/models/meeting_participant_status.py` - no longer needed
+   - Frontend CMS-specific handlers and state variables
+
+8. **Database constraints updated**
+   - `m_number` field increased from `VARCHAR(15)` to `VARCHAR(50)` to support longer meeting numbers
+   - `password` field increased to `VARCHAR(120)` to support longer passwords
+
+### Migration Notes
+
+If you have existing data in the old architecture:
+
+1. **Backup your database** before migration
+2. **Export existing meetings** from the `meetings` table
+3. **Import meetings to CMS** using the CMS API or admin interface
+4. **Update group associations** to use meeting numbers instead of UUIDs
+5. **Update favorites** to use meeting numbers instead of UUIDs
+
+The new architecture is simpler and more aligned with the actual data source (CMS), but requires careful migration of existing data.
 
 ---
 
