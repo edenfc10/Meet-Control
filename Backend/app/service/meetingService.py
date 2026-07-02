@@ -17,7 +17,7 @@ from typing import Dict, List, Optional
 from fastapi import HTTPException
 from sqlalchemy import String, cast
 
-from app.models.meeting import AccessLevel, GroupMeeting
+from app.models.meeting import AccessLevel, GroupMeeting, Meeting
 from app.models.member_group_access import MemberGroupAccess
 from app.models.favorite_meeting import FavoriteMeeting
 from app.schema.meeting import MeetingInCreate, MeetingInUpdate, MeetingOutput
@@ -134,6 +134,23 @@ class MeetingService:
             if cs:
                 return cs, t
         return None, None
+
+    def _ensure_meeting_exists(self, meeting_number: str, access_level: str) -> Meeting:
+        """Ensure Meeting record exists in local database. Creates if missing."""
+        existing = self.session.query(Meeting).filter(
+            Meeting.meeting_number == meeting_number,
+            Meeting.access_level == access_level
+        ).first()
+        if existing:
+            return existing
+        meeting = Meeting(
+            meeting_number=meeting_number,
+            access_level=access_level,
+            cms_id=None
+        )
+        self.session.add(meeting)
+        self.session.commit()
+        return meeting
 
     def get_meeting_by_number(self, number) -> MeetingOutput:
         cs, t = self._find_cospace(number)

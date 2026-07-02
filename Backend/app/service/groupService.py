@@ -242,8 +242,11 @@ class GroupService:
 
     def add_meeting_to_group(self, group_uuid: str, meeting_number: str, requester_uuid: str = None, requester_role: str = None) -> GroupOutput:
         # סוג הפגישה נקבע לפי ה-CMS (audio/video) — גם מאמת שהפגישה קיימת
+        # Handle composite ID format: "number:access_level"
         from app.service.meetingService import MeetingService
-        cs, meeting_type = MeetingService(session=self.session)._find_cospace(meeting_number)
+        actual_meeting_number = meeting_number.split(":")[0] if ":" in meeting_number else meeting_number
+        meeting_service = MeetingService(session=self.session)
+        cs, meeting_type = meeting_service._find_cospace(actual_meeting_number)
         if not cs or not meeting_type:
             raise HTTPException(status_code=404, detail="Meeting not found in CMS")
 
@@ -256,8 +259,9 @@ class GroupService:
                     detail=f"Admin restricted to {responsible_level} meetings only",
                 )
 
+        meeting_service._ensure_meeting_exists(actual_meeting_number, meeting_type)
         group = self.__groupRepository.add_meeting_to_group_by_number(
-            group_uuid=group_uuid, meeting_number=meeting_number, access_level=meeting_type,
+            group_uuid=group_uuid, meeting_number=actual_meeting_number, access_level=meeting_type,
         )
         if group:
             return self._to_output(group)
@@ -265,9 +269,10 @@ class GroupService:
 
     def remove_meeting_from_group(self, group_uuid: str, meeting_number: str) -> GroupOutput:
         from app.service.meetingService import MeetingService
-        _, meeting_type = MeetingService(session=self.session)._find_cospace(meeting_number)
+        actual_meeting_number = meeting_number.split(":")[0] if ":" in meeting_number else meeting_number
+        _, meeting_type = MeetingService(session=self.session)._find_cospace(actual_meeting_number)
         group = self.__groupRepository.remove_meeting_from_group_by_number(
-            group_uuid=group_uuid, meeting_number=meeting_number, access_level=meeting_type,
+            group_uuid=group_uuid, meeting_number=actual_meeting_number, access_level=meeting_type,
         )
         if group:
             return self._to_output(group)

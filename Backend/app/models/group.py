@@ -34,7 +34,10 @@ class Group(Base):
 
     # פגישות המדור - שיוכים לפי מספר פגישה (GroupMeeting)
     meeting_links = relationship(
-        "GroupMeeting", back_populates="group", cascade="all, delete-orphan"
+        "GroupMeeting",
+        back_populates="group",
+        cascade="all, delete-orphan",
+        doc="Meetings linked to this department; cascade deletes on group removal"
     )
 
     @property

@@ -51,3 +51,8 @@ class User(Base):
     group_access_levels = relationship(
         "MemberGroupAccess", back_populates="member", cascade="all, delete-orphan"
     )
+    # Favorite meetings (cascade delete when user is removed)
+    favorites = relationship(
+        "FavoriteMeeting", back_populates="member", cascade="all, delete-orphan",
+        doc="Meetings this user has marked as favorites"
+    )

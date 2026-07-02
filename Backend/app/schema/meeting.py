@@ -56,6 +56,12 @@ class MeetingOutput(BaseModel):
     password: Optional[str] = None
     groups: Optional[List[UUID]] = Field(default_factory=list)    # UUIDs של מדורים משויכים
     participant_count: int = 0
+    UUID: str = Field(default="")                                 # Composite ID: {m_number}:{accessLevel}
+
+    def __init__(self, **data):
+        super().__init__(**data)
+        if not self.UUID or self.UUID == "":
+            self.UUID = f"{self.m_number}:{self.accessLevel}"
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 

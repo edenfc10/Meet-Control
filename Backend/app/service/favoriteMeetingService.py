@@ -42,6 +42,7 @@ class FavoriteMeetingService:
             raise HTTPException(status_code=404, detail="Meeting is not available")
         if not self._repo.user_can_access(user_uuid, meeting_number, cms_type, user_role):
             raise HTTPException(status_code=403, detail="You are not allowed to access this meeting")
+        self._meetings._ensure_meeting_exists(meeting_number, cms_type)
         favorite = self._repo.add_favorite(user_uuid=user_uuid, meeting_number=meeting_number, access_level=cms_type)
         if not favorite:
             raise HTTPException(status_code=400, detail="Invalid meeting")

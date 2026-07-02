@@ -16,8 +16,9 @@
 # ============================================================================
 
 from enum import Enum
+from datetime import datetime
 
-from sqlalchemy import Column, Enum as SqlEnum, ForeignKey
+from sqlalchemy import Column, Enum as SqlEnum, ForeignKey, DateTime, func
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
 from sqlalchemy.orm import relationship
 
@@ -55,9 +56,25 @@ class MemberGroupAccess(Base):
     access_level = Column(SqlEnum(MemberGroupAccessLevel), primary_key=True)
 
     # --- Relationships (×§×©×¨×™×) ---
+    # Audit Trail (OPTIONAL - for compliance and debugging)
+    created_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        doc="When this access was granted"
+    )
+    updated_at = Column(
+        DateTime(timezone=True),
+        nullable=False,
+        server_default=func.now(),
+        onupdate=func.now(),
+        doc="Last update timestamp"
+    )
+
+    # --- Relationships ---
     member = relationship(
         "User", back_populates="group_access_levels"
-    )  # חזרה למשתמש
+    )
     group = relationship(
         "Group", back_populates="member_access_levels"
-    )  # חזרה למדור
+    )
