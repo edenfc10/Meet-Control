@@ -23,11 +23,8 @@ export default function Groups({ language = "en" }) {
   const canManageMembers = myLevel >= 2;
 
   const availableAccessLevels = useMemo(() => {
-    if (role === "admin" && currentUser?.responsible_access_level) {
-      return [currentUser.responsible_access_level];
-    }
     return ACCESS_LEVELS;
-  }, [role, currentUser?.responsible_access_level]);
+  }, []);
 
   const accessLevelLabels = {
     audio: isHebrew ? "ועידות אודיו" : "audio",
@@ -304,7 +301,7 @@ export default function Groups({ language = "en" }) {
     );
   }, [addAccessLevels, existingAccessLevelsForSelectedUser]);
 
-  const selectedGroupMeetingIds = useMemo(() => {
+  const selectedGroupMeetingKeys = useMemo(() => {
     return new Set((selectedGroup?.meetings || []).map((id) => String(id)));
   }, [selectedGroup?.meetings]);
 
@@ -314,8 +311,8 @@ export default function Groups({ language = "en" }) {
       if (String(group?.UUID) === String(selectedGroup?.UUID)) {
         return;
       }
-      (group?.meetings || []).forEach((meetingId) => {
-        assigned.add(String(meetingId));
+      (group?.meetings || []).forEach((compositeKey) => {
+        assigned.add(String(compositeKey));
       });
     });
     return assigned;
@@ -323,22 +320,18 @@ export default function Groups({ language = "en" }) {
 
   const addableMeetingsForSelectedGroup = useMemo(() => {
     return (allMeetings || []).filter((meeting) => {
-      const meetingId = String(meeting.UUID);
-      if (selectedGroupMeetingIds.has(meetingId)) {
+      const compositeKey = `${meeting.m_number}:${(meeting.accessLevel || "").toLowerCase()}`;
+      if (selectedGroupMeetingKeys.has(compositeKey)) {
         return false;
       }
-      if (meetingsAssignedToOtherGroups.has(meetingId)) {
-        return false;
-      }
-      if (role === "admin" && currentUser?.responsible_access_level) {
+      if (role === "admin") {
         const meetingType = (meeting.accessLevel || "").toLowerCase();
-        if (meetingType !== currentUser.responsible_access_level.toLowerCase()) {
-          return false;
-        }
+        if (meetingType === "audio" && !currentUser?.can_audio) return false;
+        if (meetingType === "video" && !currentUser?.can_video) return false;
       }
       return true;
     });
-  }, [allMeetings, selectedGroupMeetingIds, meetingsAssignedToOtherGroups, role, currentUser?.responsible_access_level]);
+  }, [allMeetings, selectedGroupMeetingKeys, role, currentUser?.can_audio, currentUser?.can_video]);
 
   const filteredAddableMeetings = useMemo(() => {
     const q = searchMeetingText.trim().toLowerCase();
@@ -485,7 +478,7 @@ export default function Groups({ language = "en" }) {
   useEffect(() => {
     if (!addMeetingId) return;
     const stillAvailable = addableMeetingsForSelectedGroup.some(
-      (meeting) => String(meeting.UUID) === String(addMeetingId),
+      (meeting) => `${meeting.m_number}:${(meeting.accessLevel || "").toLowerCase()}` === String(addMeetingId),
     );
     if (!stillAvailable) {
       setAddMeetingId("");
@@ -613,15 +606,10 @@ export default function Groups({ language = "en" }) {
   const handleAddMeeting = async () => {
     if (!addMeetingId || !selectedGroup) return;
 
-    if (meetingsAssignedToOtherGroups.has(String(addMeetingId))) {
-      setModalError(text.meetingAssignedElsewhere);
-      return;
-    }
-
-    const canAddMeeting = addableMeetingsForSelectedGroup.some(
-      (meeting) => String(meeting.UUID) === String(addMeetingId),
+    const selectedMeeting = addableMeetingsForSelectedGroup.find(
+      (meeting) => `${meeting.m_number}:${(meeting.accessLevel || "").toLowerCase()}` === String(addMeetingId),
     );
-    if (!canAddMeeting) {
+    if (!selectedMeeting) {
       setModalError(text.meetingUnavailable);
       return;
     }
@@ -629,7 +617,7 @@ export default function Groups({ language = "en" }) {
     setAddMeetingLoading(true);
     setModalError("");
     try {
-      await groupAPI.addMeeting(selectedGroup.UUID, addMeetingId);
+      await groupAPI.addMeeting(selectedGroup.UUID, selectedMeeting.m_number, selectedMeeting.accessLevel);
       setAddMeetingId("");
       const resp = await groupAPI.listGroups();
       const updated = (resp.data || []).find(
@@ -647,11 +635,11 @@ export default function Groups({ language = "en" }) {
   };
 
   // --- הסרת פגישה מקבוצה ---
-  const handleRemoveMeeting = async (meetingUuid) => {
+  const handleRemoveMeeting = async (mNumber, accessLevel) => {
     if (!selectedGroup) return;
     setModalError("");
     try {
-      await groupAPI.removeMeeting(selectedGroup.UUID, meetingUuid);
+      await groupAPI.removeMeeting(selectedGroup.UUID, mNumber, accessLevel);
       const resp = await groupAPI.listGroups();
       const updated = (resp.data || []).find(
         (g) => g.UUID === selectedGroup.UUID,
@@ -1080,27 +1068,24 @@ export default function Groups({ language = "en" }) {
                           </tr>
                         </thead>
                         <tbody>
-                          {selectedGroup.meetings.map((mId) => {
+                          {selectedGroup.meetings.map((compositeKey) => {
+                            const [mNum, mType] = String(compositeKey).split(":");
                             const meeting = allMeetings.find(
-                              (m) => m.UUID === mId || m.UUID === String(mId),
+                              (m) => String(m.m_number) === mNum && (m.accessLevel || "").toLowerCase() === (mType || "").toLowerCase(),
                             );
                             return (
-                              <tr key={mId}>
+                              <tr key={compositeKey}>
                                 <td>
-                                  {meeting
-                                    ? `#${meeting.m_number}`
-                                    : String(mId).slice(0, 8) + "..."}
+                                  {meeting ? `#${meeting.m_number}` : `#${mNum}`}
                                 </td>
                                 <td>
-                                  {meeting
-                                    ? formatAccessLevel(meeting.accessLevel)
-                                    : "—"}
+                                  {meeting ? formatAccessLevel(meeting.accessLevel) : formatAccessLevel(mType)}
                                 </td>
                                 <td>
                                   <button
                                     className="btn-danger btn-sm"
                                     onClick={() =>
-                                      handleRemoveMeeting(String(mId))
+                                      handleRemoveMeeting(mNum, mType)
                                     }
                                   >
                                     {text.remove}
@@ -1118,7 +1103,8 @@ export default function Groups({ language = "en" }) {
                     ) : (
                       <div className="groups-add-row groups-add-meeting-row">
                         {addMeetingId && (() => {
-                          const selMeeting = allMeetings.find(m => String(m.UUID) === String(addMeetingId));
+                          const [selNum, selType] = String(addMeetingId).split(":");
+                          const selMeeting = allMeetings.find(m => String(m.m_number) === selNum && (m.accessLevel || "").toLowerCase() === (selType || "").toLowerCase());
                           return selMeeting ? (
                             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 8, padding: "5px 10px", background: "#f0f4ff", borderRadius: 6, fontSize: "0.85em", border: "1px solid #c5d0f5" }}>
                               <span style={{ fontWeight: 600 }}>#{selMeeting.m_number}</span>
@@ -1143,17 +1129,17 @@ export default function Groups({ language = "en" }) {
                           >
                             {filteredAddableMeetings.length > 0 ? (
                               filteredAddableMeetings.map((m) => {
-                                const selected =
-                                  String(addMeetingId) === String(m.UUID);
+                                const compositeKey = `${m.m_number}:${(m.accessLevel || "").toLowerCase()}`;
+                                const selected = String(addMeetingId) === compositeKey;
                                 return (
                                   <button
-                                    key={m.UUID}
+                                    key={compositeKey}
                                     type="button"
                                     role="option"
                                     aria-selected={selected}
                                     className={`groups-search-select-option ${selected ? "is-selected" : ""}`}
                                     onClick={() => {
-                                      setAddMeetingId(m.UUID);
+                                      setAddMeetingId(compositeKey);
                                       setSearchMeetingText("");
                                     }}
                                   >

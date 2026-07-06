@@ -14,12 +14,12 @@
 
 from .base import BaseRepository
 import uuid
-from app.models.user import User
+from app.models.user import User , UserRole
 from app.models.group import Group
 from app.models.meeting import GroupMeeting
 from app.models.member_group_access import MemberGroupAccess, MemberGroupAccessLevel
 from app.schema.user import GroupInCreate, GroupInUpdate, GroupOutput, UserOutput
-
+from fastapi import HTTPException
 
 class GroupRepository(BaseRepository):
 
@@ -34,11 +34,11 @@ class GroupRepository(BaseRepository):
         return new_group
 
     def get_all_groups(self) -> list[GroupOutput]:
-        """ ×ž×—×–×™×¨ ××ª ×›×œ ×”×ž×“×•×¨×™× """
+        """ Returns all groups """
         return self.session.query(Group).all()
 
     def get_groups_by_user_uuid(self, user_uuid: str) -> list[GroupOutput]:
-        """ מחזיר את כל המדורים שלמשתמש יש בהם הרשאה (דרך member_access_levels) """
+        """ Returns all groups for a user (via member_access_levels) """
         try:
             normalized_user_uuid = uuid.UUID(str(user_uuid))
         except (ValueError, TypeError):
@@ -64,7 +64,7 @@ class GroupRepository(BaseRepository):
         return False
 
     def update_group(self, group_uuid: str, group_data: GroupInUpdate) -> GroupOutput:
-        """ ×ž×¢×“×›×Ÿ ×¤×¨×˜×™ ×ž×“×•×¨ (×œ×ž×©×œ ×©×) - ×¨×§ ×©×“×•×ª ×©× ×©×œ×—×• """
+        """ Updates a group (by UUID) """
         group = self.session.query(Group).filter(Group.UUID == group_uuid).first()
         if not group:
             return None
@@ -103,6 +103,14 @@ class GroupRepository(BaseRepository):
 
         if not group or not user:
             return None
+
+        if getattr(user.role, "value", user.role) == "agent":
+            other_group = self.session.query(MemberGroupAccess).filter(
+                MemberGroupAccess.member_uuid == user.UUID,
+                MemberGroupAccess.group_uuid != group.UUID,
+            ).first()
+            if other_group:
+                raise HTTPException(status_code=400, detail="Agent can only belong to one group")
 
         existing = self.session.query(MemberGroupAccess).filter(
             MemberGroupAccess.member_uuid == user.UUID,
@@ -198,15 +206,10 @@ class GroupRepository(BaseRepository):
         existing = self.session.query(GroupMeeting).filter(
             GroupMeeting.meeting_number == num,
             GroupMeeting.access_level == lvl,
+            GroupMeeting.group_uuid == group.UUID,
         ).first()
         if existing:
-            if str(existing.group_uuid) != str(group.UUID):
-                from fastapi import HTTPException
-                raise HTTPException(
-                    status_code=400,
-                    detail="Meeting is already assigned to another group. A meeting can only belong to one group.",
-                )
-            return group  # כבר משויכת למדור הזה
+            return group  # already linked to this group
 
         self.session.add(GroupMeeting(meeting_number=num, access_level=lvl, group_uuid=group.UUID))
         self.session.commit()

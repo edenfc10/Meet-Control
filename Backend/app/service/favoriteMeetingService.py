@@ -2,7 +2,7 @@ from fastapi import HTTPException
 
 from app.repository.favoriteMeetingRepo import FavoriteMeetingRepository
 from app.schema.favorite import FavoriteMeetingOutput, FavoriteMeetingParticipant
-from app.service.cms import CMS
+from app.service.cms import CMSFactory
 from app.service.meetingService import MeetingService, _clean
 
 
@@ -16,7 +16,7 @@ class FavoriteMeetingService:
         number = favorite.meeting_number
         cms_type = favorite.access_level
         try:
-            cs = CMS(cms_type=cms_type).get_cospace_by_uri(number)
+            cs = CMSFactory.get(self.session, cms_type).get_cospace_by_uri(number)
         except Exception:
             cs = None
         if not cs:

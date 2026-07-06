@@ -25,6 +25,12 @@ from app.util.init_db import create_tables
 from contextlib import asynccontextmanager
 import logging
 import sys
+import app.models.user  # noqa: F401 - must be imported before routers to register all SQLAlchemy mappers
+import app.models.group  # noqa: F401
+import app.models.meeting  # noqa: F401
+import app.models.member_group_access  # noqa: F401
+import app.models.favorite_meeting  # noqa: F401
+import app.models.server  # noqa: F401
 from app.routers.auth import authRouter
 from app.routers.user import userRouter
 from app.routers.group import groupRouter

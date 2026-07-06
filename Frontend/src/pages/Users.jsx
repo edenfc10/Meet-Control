@@ -26,7 +26,8 @@ export default function Users({ language = "en" }) {
     username: "",
     password: "",
     role: "agent",
-    responsible_access_level: "",
+    can_audio: false,
+    can_video: false,
   });
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -41,7 +42,8 @@ export default function Users({ language = "en" }) {
     username: "",
     password: "",
     role: "",
-    responsible_access_level: "",
+    can_audio: false,
+    can_video: false,
   });
   const [editError, setEditError] = useState("");
   const [editSuccess, setEditSuccess] = useState("");
@@ -163,8 +165,8 @@ export default function Users({ language = "en" }) {
   }, []);
 
   const handleChange = (e) => {
-    const { name, value } = e.target;
-    setFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setFormData((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
   const handleSubmit = async (e) => {
@@ -205,8 +207,9 @@ export default function Users({ language = "en" }) {
       password: formData.password,
     };
 
-    if (formData.role === "admin" && formData.responsible_access_level) {
-      payload.responsible_access_level = formData.responsible_access_level;
+    if (formData.role === "admin") {
+      payload.can_audio = formData.can_audio;
+      payload.can_video = formData.can_video;
     }
 
     try {
@@ -230,7 +233,8 @@ export default function Users({ language = "en" }) {
         username: "",
         password: "",
         role: roleOptions[0] || "agent",
-        responsible_access_level: "",
+        can_audio: false,
+        can_video: false,
       });
       await fetchUsers();
     } catch (err) {
@@ -283,7 +287,8 @@ export default function Users({ language = "en" }) {
       username: user.username || "",
       password: "",
       role: user.role || "",
-      responsible_access_level: user.responsible_access_level || "",
+      can_audio: user.can_audio ?? false,
+      can_video: user.can_video ?? false,
     });
     setEditError("");
     setEditSuccess("");
@@ -291,14 +296,14 @@ export default function Users({ language = "en" }) {
 
   const closeEditModal = () => {
     setEditingUser(null);
-    setEditFormData({ username: "", password: "", role: "", responsible_access_level: "" });
+    setEditFormData({ username: "", password: "", role: "", can_audio: false, can_video: false });
     setEditError("");
     setEditSuccess("");
   };
 
   const handleEditChange = (e) => {
-    const { name, value } = e.target;
-    setEditFormData((prev) => ({ ...prev, [name]: value }));
+    const { name, value, type, checked } = e.target;
+    setEditFormData((prev) => ({ ...prev, [name]: type === "checkbox" ? checked : value }));
   };
 
   const handleEditSubmit = async (e) => {
@@ -332,11 +337,8 @@ export default function Users({ language = "en" }) {
           editFormData.role !== editingUser.role
             ? editFormData.role
             : undefined,
-        responsible_access_level:
-          editFormData.role === "admin" &&
-          editFormData.responsible_access_level !== editingUser.responsible_access_level
-            ? editFormData.responsible_access_level || undefined
-            : undefined,
+        can_audio: editFormData.role === "admin" ? editFormData.can_audio : undefined,
+        can_video: editFormData.role === "admin" ? editFormData.can_video : undefined,
       });
 
       setEditSuccess(
@@ -478,18 +480,16 @@ export default function Users({ language = "en" }) {
                 ))}
               </select>
               {formData.role === "admin" ? (
-                <select
-                  className="search-select"
-                  name="responsible_access_level"
-                  value={formData.responsible_access_level}
-                  onChange={handleChange}
-                >
-                  <option value="">
-                    {text.responsibleAccessPlaceholder}
-                  </option>
-                  <option value="audio">{text.audioLabel}</option>
-                  <option value="video">{text.videoLabel}</option>
-                </select>
+                <div style={{ display: "flex", gap: 16, alignItems: "center", padding: "6px 0" }}>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <input type="checkbox" name="can_audio" checked={formData.can_audio} onChange={handleChange} />
+                    {text.audioLabel}
+                  </label>
+                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                    <input type="checkbox" name="can_video" checked={formData.can_video} onChange={handleChange} />
+                    {text.videoLabel}
+                  </label>
+                </div>
               ) : null}
             </div>
 
@@ -570,14 +570,10 @@ export default function Users({ language = "en" }) {
                   </div>
                   <div className="meeting-meta">
                     {text.sidLabel}: {user.s_id}
-                    {user.role === "admin" && user.responsible_access_level ? (
+                    {user.role === "admin" && (user.can_audio || user.can_video) ? (
                       <span className="user-access-badge">
                         {" | "}
-                        {user.responsible_access_level === "audio"
-                          ? text.audioLabel
-                          : user.responsible_access_level === "video"
-                            ? text.videoLabel
-                            : user.responsible_access_level}
+                        {[user.can_audio && text.audioLabel, user.can_video && text.videoLabel].filter(Boolean).join(" + ")}
                       </span>
                     ) : null}
                   </div>
@@ -701,18 +697,16 @@ export default function Users({ language = "en" }) {
                   ))}
                 </select>
                 {editFormData.role === "admin" ? (
-                  <select
-                    className="search-select"
-                    name="responsible_access_level"
-                    value={editFormData.responsible_access_level}
-                    onChange={handleEditChange}
-                  >
-                    <option value="">
-                      {text.responsibleAccessPlaceholder}
-                    </option>
-                    <option value="audio">{text.audioLabel}</option>
-                    <option value="video">{text.videoLabel}</option>
-                  </select>
+                  <div style={{ display: "flex", gap: 16, alignItems: "center", padding: "6px 0" }}>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                      <input type="checkbox" name="can_audio" checked={editFormData.can_audio} onChange={handleEditChange} />
+                      {text.audioLabel}
+                    </label>
+                    <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
+                      <input type="checkbox" name="can_video" checked={editFormData.can_video} onChange={handleEditChange} />
+                      {text.videoLabel}
+                    </label>
+                  </div>
                 ) : null}
               </div>
 

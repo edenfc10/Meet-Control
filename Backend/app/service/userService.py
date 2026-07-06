@@ -68,6 +68,8 @@ class UserService:
                     refresh_token=refresh_token,
                     role=user.role,
                     responsible_access_level=getattr(user, "responsible_access_level", None),
+                    can_audio=getattr(user, "can_audio", False) or False,
+                    can_video=getattr(user, "can_video", False) or False,
                 )  # החזרת הטוקן והתפקיד
             raise HTTPException(status_code=500, detail="Unable to process request")
         raise HTTPException(status_code=401, detail="Please check your Credentials")
@@ -125,6 +127,8 @@ class UserService:
                 username=user.username,
                 role=user.role,
                 responsible_access_level=getattr(user, "responsible_access_level", None),
+                can_audio=getattr(user, "can_audio", False) or False,
+                can_video=getattr(user, "can_video", False) or False,
                 groups=[m.group_uuid for m in user.group_access_levels],
             )
         raise HTTPException(status_code=400, detail="User is not available")
@@ -171,6 +175,8 @@ class UserService:
             username=user.username,
             role=user.role,
             responsible_access_level=getattr(user, "responsible_access_level", None),
+            can_audio=getattr(user, "can_audio", False) or False,
+            can_video=getattr(user, "can_video", False) or False,
             groups=[m.group_uuid for m in user.group_access_levels],
         )
         return user
@@ -186,6 +192,8 @@ class UserService:
             username=user.username,
             role=user.role,
             responsible_access_level=getattr(user, "responsible_access_level", None),
+            can_audio=getattr(user, "can_audio", False) or False,
+            can_video=getattr(user, "can_video", False) or False,
             groups=[m.group_uuid for m in user.group_access_levels],
         )
         return user

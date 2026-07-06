@@ -51,6 +51,8 @@ export default function Sidebar({ language = "en", onToggleLanguage }) {
   const isSuperAdmin = currentUser?.role === "super_admin";
   const isAdmin = ["super_admin", "admin"].includes(currentUser?.role);
   const isStaff = ["super_admin", "admin", "agent"].includes(currentUser?.role);
+  const canAudio = currentUser?.can_audio ?? false;
+  const canVideo = currentUser?.can_video ?? false;
 
   return (
     <aside className="sidebar">
@@ -65,6 +67,10 @@ export default function Sidebar({ language = "en", onToggleLanguage }) {
                 if (item.path === "/servers") return isSuperAdmin;
                 if (item.path === "/logs") return isSuperAdmin;
                 if (item.path === "/reports") return isAdmin;
+                if (currentUser?.role === "admin") {
+                  if (item.path === "/audio-meetings") return canAudio;
+                  if (item.path === "/video-meetings") return canVideo;
+                }
                 return true;
               })
               .map((item) => (

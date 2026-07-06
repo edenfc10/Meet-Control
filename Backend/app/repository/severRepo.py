@@ -5,8 +5,10 @@ from app.schema.server import ServerInCreate, ServerInUpdate
 
 
 class ServerRepository(BaseRepository):
-    def create_server(self, server_data: ServerInCreate) -> Server:
-        new_server = Server(**server_data.model_dump())
+    def create_server(self, server_data: ServerInCreate, is_active: bool = False) -> Server:
+        data = server_data.model_dump()
+        data["is_active"] = is_active
+        new_server = Server(**data)
         self.session.add(new_server)
         self.session.commit()
         self.session.refresh(new_server)
@@ -16,18 +18,19 @@ class ServerRepository(BaseRepository):
         query = self.session.query(Server)
         if access_level is not None:
             query = query.filter(Server.accessLevel == access_level)
-        return query.order_by(Server.created_at.desc(), Server.server_name.asc()).all()
+        return query.order_by(Server.priority.asc(), Server.server_name.asc()).all()
 
     def get_server_by_uuid(self, server_uuid: str) -> Server | None:
         return self.session.query(Server).filter(Server.UUID == server_uuid).first()
 
-    def update_server(self, server_uuid: str, server_data: ServerInUpdate) -> Server | None:
+    def update_server(self, server_uuid: str, server_data: ServerInUpdate, is_active: bool = False) -> Server | None:
         server = self.get_server_by_uuid(server_uuid=server_uuid)
         if not server:
             return None
 
         for key, value in server_data.model_dump(exclude_none=True).items():
             setattr(server, key, value)
+        server.is_active = is_active
 
         self.session.commit()
         self.session.refresh(server)

@@ -316,7 +316,7 @@ export default function MeetingsPage({
   useEffect(() => { setPage(1); }, [search, searchField, sortField, sortDir]);
 
   const filtered = data.filter((m) => {
-    if (searchField === "no_group") return !m.group;
+    if (searchField === "no_group") return !(m.groups?.length);
     const query = search.toLowerCase();
     if (!query) return true;
     if (searchField === "number")
@@ -329,9 +329,10 @@ export default function MeetingsPage({
       return nameMatch || numberMatch;
     }
     if (searchField === "group") {
-      const groupKey = String(m.group || "").toLowerCase();
-      const groupName = (groupMap[groupKey] || "").toLowerCase();
-      return groupName.includes(query);
+      return (m.groups || []).some((g) => {
+        const groupName = (groupMap[String(g).toLowerCase()] || "").toLowerCase();
+        return groupName.includes(query);
+      });
     }
     return true;
   }).sort((a, b) => {
@@ -340,8 +341,8 @@ export default function MeetingsPage({
       av = parseInt(a.meetingId) || 0;
       bv = parseInt(b.meetingId) || 0;
     } else if (sortField === "group") {
-      av = (groupMap[String(a.group || "").toLowerCase()] || "").toLowerCase();
-      bv = (groupMap[String(b.group || "").toLowerCase()] || "").toLowerCase();
+      av = (a.groups || []).map(g => groupMap[String(g).toLowerCase()] || "").join(",").toLowerCase();
+      bv = (b.groups || []).map(g => groupMap[String(g).toLowerCase()] || "").join(",").toLowerCase();
     } else {
       av = a.meetingId || "";
       bv = b.meetingId || "";
@@ -355,25 +356,17 @@ export default function MeetingsPage({
   const paginated = filtered.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
 
   const handleOpenAssign = (meeting) => {
-    const currentGroupKey = meeting.group ? String(meeting.group).toLowerCase() : "";
-    setAssignGroupId(currentGroupKey);
+    setAssignGroupId("");
     setAssignError("");
     setAssignGroupModal(meeting);
   };
 
   const handleAssignGroup = async () => {
-    if (!assignGroupModal) return;
+    if (!assignGroupModal || !assignGroupId) return;
     setAssignLoading(true);
     setAssignError("");
     try {
-      const currentGroupKey = assignGroupModal.group ? String(assignGroupModal.group).toLowerCase() : "";
-      if (currentGroupKey && currentGroupKey !== assignGroupId) {
-        await groupAPI.removeMeeting(assignGroupModal.group, assignGroupModal.dbId);
-      }
-      if (assignGroupId) {
-        const targetUUID = Object.keys(groupMap).find(k => k === assignGroupId);
-        if (targetUUID) await groupAPI.addMeeting(targetUUID, assignGroupModal.dbId);
-      }
+      await groupAPI.addMeeting(assignGroupId, assignGroupModal.dbId, assignGroupModal.accessLevel);
       setAssignGroupModal(null);
       showToast(isHebrew ? "שיוך המדור עודכן בהצלחה" : "Group assigned successfully");
       onRefresh();
@@ -384,13 +377,12 @@ export default function MeetingsPage({
     }
   };
 
-  const handleRemoveAssign = async () => {
-    if (!assignGroupModal?.group) return;
+  const handleRemoveAssign = async (groupUUID) => {
+    if (!assignGroupModal) return;
     setAssignLoading(true);
     setAssignError("");
     try {
-      await groupAPI.removeMeeting(assignGroupModal.group, assignGroupModal.dbId);
-      setAssignGroupModal(null);
+      await groupAPI.removeMeeting(groupUUID, assignGroupModal.dbId, assignGroupModal.accessLevel);
       setConfirmRemoveAssign(false);
       showToast(isHebrew ? "שיוך המדור הוסר בהצלחה" : "Group assignment removed", "info");
       onRefresh();
@@ -447,7 +439,7 @@ export default function MeetingsPage({
     const newPassword = editPassword.trim() || null;
     try {
       // הבאקנד מעדכן גם ב-CMS (write-through) — אין צורך בקריאה נפרדת
-      await meetingAPI.updateMeetingPassword(meeting.dbId, newPassword);
+      await meetingAPI.updateMeetingPassword(meeting.dbId, newPassword, meeting.accessLevel);
       setEditId(null);
       setEditPassword("");
       showToast(isHebrew ? "סיסמא עודכנה בהצלחה" : "Password updated successfully");
@@ -599,8 +591,8 @@ export default function MeetingsPage({
                     )}
                     <span className="meeting-group">
                       {text.group}:{" "}
-                      {meeting.group
-                        ? (groupMap[String(meeting.group).toLowerCase()] || String(meeting.group).slice(0, 8) + "...")
+                      {meeting.groups?.length
+                        ? meeting.groups.map(g => groupMap[String(g).toLowerCase()] || String(g).slice(0, 8) + "...").join(" | ")
                         : text.noGroup}
                     </span>
                     <span className="meeting-group">
@@ -803,7 +795,7 @@ export default function MeetingsPage({
                   <table className="participants-table">
                     <thead>
                       <tr>
-                        <th>{isHebrew ? "שם" : "Name"}</th>
+                        <th>{isHebrew ? "מספר זיהוי" : "S_ID"}</th>
                         <th>{isHebrew ? "שם משתמש" : "Username"}</th>
                         <th>{isHebrew ? "תפקיד" : "Role"}</th>
                         <th>{isHebrew ? "מדור" : "Group"}</th>
@@ -812,7 +804,7 @@ export default function MeetingsPage({
                     <tbody>
                       {participants.map((p, i) => (
                         <tr key={i}>
-                          <td>{p.name || "—"}</td>
+                          <td>{p.S_ID || "—"}</td>
                           <td>{p.username || "—"}</td>
                           <td>{p.role || "—"}</td>
                           <td>{p.group || "—"}</td>
@@ -912,6 +904,26 @@ export default function MeetingsPage({
                 ))}
               </select>
             </div>
+            {assignGroupModal.groups?.length > 0 && (
+              <div style={{ marginBottom: "16px" }}>
+                <div style={{ fontSize: "0.85rem", marginBottom: "6px", fontWeight: 500 }}>
+                  {isHebrew ? "מדורים משויכים:" : "Assigned groups:"}
+                </div>
+                {assignGroupModal.groups.map((g) => {
+                  const gKey = String(g).toLowerCase();
+                  const gName = groupMap[gKey] || gKey.slice(0, 8) + "...";
+                  return (
+                    <div key={g} style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4 }}>
+                      <span>{gName}</span>
+                      <button className="btn-danger" style={{ padding: "2px 8px", fontSize: "0.8rem" }}
+                        onClick={() => handleRemoveAssign(gKey)} disabled={assignLoading}>
+                        {isHebrew ? "הסר" : "Remove"}
+                      </button>
+                    </div>
+                  );
+                })}
+              </div>
+            )}
             {assignError && (
               <div className="meetings-error" style={{ marginBottom: "12px" }}>{assignError}</div>
             )}
@@ -919,24 +931,6 @@ export default function MeetingsPage({
               <button className="btn-secondary" onClick={() => setAssignGroupModal(null)} disabled={assignLoading}>
                 {text.cancel}
               </button>
-              {assignGroupModal.group && !confirmRemoveAssign && (
-                <button className="btn-danger" onClick={() => setConfirmRemoveAssign(true)} disabled={assignLoading}>
-                  {text.removeAssign}
-                </button>
-              )}
-              {assignGroupModal.group && confirmRemoveAssign && (
-                <>
-                  <span style={{ fontSize: "0.85rem", color: "#d32f2f", alignSelf: "center" }}>
-                    {isHebrew ? "בטוח?" : "Sure?"}
-                  </span>
-                  <button className="btn-danger" onClick={handleRemoveAssign} disabled={assignLoading}>
-                    {assignLoading ? text.assigning : (isHebrew ? "כן, הסר" : "Yes, remove")}
-                  </button>
-                  <button className="btn-secondary" onClick={() => setConfirmRemoveAssign(false)} disabled={assignLoading}>
-                    {text.cancel}
-                  </button>
-                </>
-              )}
               <button className="btn-primary" onClick={handleAssignGroup} disabled={assignLoading || !assignGroupId}>
                 {assignLoading ? text.assigning : text.assign}
               </button>

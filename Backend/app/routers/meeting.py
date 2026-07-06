@@ -122,9 +122,10 @@ def create_meeting_by_access_level(meeting_data: MeetingInCreate, session: Sessi
 # --- DELETE /meetings/{meeting_number} ---
 @meetingRouter.delete("/{meeting_number}", status_code=200)
 def delete_meeting(meeting_number: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+    user_role = str(getattr(user.role, "value", user.role)).lower().strip()
     try:
         LoggerManager.get_logger().info("User %s deleting meeting number=%s", user.s_id, meeting_number)
-        MeetingService(session=session).delete_meeting(number=meeting_number)
+        MeetingService(session=session).delete_meeting(number=meeting_number, user_uuid=str(user.UUID), user_role=user_role)
         return {"detail": "Meeting deleted successfully"}
     except HTTPException:
         raise
@@ -135,7 +136,7 @@ def delete_meeting(meeting_number: str, session: Session = Depends(get_db), user
 
 # --- PUT /meetings/password/{meeting_number} ---
 @meetingRouter.put("/password/{meeting_number}", status_code=200, response_model=MeetingOutput)
-def update_meeting_password(meeting_number: str, meeting_data: MeetingPasswordUpdate, session: Session = Depends(get_db), user=Depends(validator)):
+def update_meeting_password(meeting_number: str, meeting_data: MeetingPasswordUpdate, access_level: str = None, session: Session = Depends(get_db), user=Depends(validator)):
     user_role = str(getattr(user.role, "value", user.role)).lower().strip()
     try:
         LoggerManager.get_logger().info(
@@ -147,6 +148,7 @@ def update_meeting_password(meeting_number: str, meeting_data: MeetingPasswordUp
             password=meeting_data.password,
             user_uuid=str(user.UUID),
             user_role=user_role,
+            access_level_hint=access_level,
         )
     except HTTPException:
         raise
@@ -179,9 +181,9 @@ def _authorized_participants(session: Session, meeting_number: str):
             if u and str(u.UUID) not in users_seen:
                 users_seen.add(str(u.UUID))
                 result.append({
-                    "name": u.username or u.s_id,
+                    "S_ID": u.s_id,
                     "legId": str(u.UUID),
-                    "username": u.s_id,
+                    "username": u.username or u.s_id,
                     "role": str(getattr(u.role, "value", u.role)),
                     "group": group.name,
                 })

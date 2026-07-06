@@ -9,7 +9,7 @@
 
 from enum import Enum
 from typing import List, Optional
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import BaseModel, Field, ConfigDict, model_validator
 from uuid import UUID
 
 
@@ -58,10 +58,11 @@ class MeetingOutput(BaseModel):
     participant_count: int = 0
     UUID: str = Field(default="")                                 # Composite ID: {m_number}:{accessLevel}
 
-    def __init__(self, **data):
-        super().__init__(**data)
+    @model_validator(mode='after')
+    def set_uuid(self):
         if not self.UUID or self.UUID == "":
             self.UUID = f"{self.m_number}:{self.accessLevel}"
+        return self
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 

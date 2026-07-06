@@ -73,6 +73,8 @@ class UserInCreate(BaseModel):
     role: UserRole                                         # תפקיד (super_admin/admin/agent)
     group_ids: Optional[List[UUID]] = Field(default_factory=list)  # ×ž×“×•×¨×™× ×œ×©×™×•×š (××•×¤×¦×™×•× ×œ×™)
     responsible_access_level: Optional[str] = None
+    can_audio: bool = False
+    can_video: bool = False
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
@@ -85,6 +87,8 @@ class UserInCreateNoRole(BaseModel):
     role: Optional[UserRole] = None
     group_ids: Optional[List[UUID]] = Field(default_factory=list)
     responsible_access_level: Optional[str] = None
+    can_audio: Optional[bool] = None
+    can_video: Optional[bool] = None
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
@@ -97,6 +101,8 @@ class UserOutput(BaseModel):
     username: str
     role: UserRole
     responsible_access_level: Optional[str] = None
+    can_audio: bool = False
+    can_video: bool = False
     groups: Optional[List[UUID]] = Field(default_factory=list)  # ×¨×©×™×ž×ª UUIDs ×©×œ ×”×ž×“×•×¨×™×
 
     # ×•×œ×™×“×˜×•×¨ ×ž×•×ª×× ××™×©×™×ª - ×ž×ž×™×¨ ××•×‘×™×™×§×˜×™ Group ×œ-UUID ×‘×œ×‘×“
@@ -145,7 +151,9 @@ class UserLoginOutput(BaseModel):
     refresh_token: str
     role: UserRole
     responsible_access_level: Optional[str] = None
-    
+    can_audio: bool = False
+    can_video: bool = False
+
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 class TokenType(str, Enum):
@@ -179,4 +187,5 @@ class UserWithToken(UserOutput):
     token: str
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
+
 

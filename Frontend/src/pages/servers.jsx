@@ -32,6 +32,7 @@ const createEmptySection = () => ({
   port: "",
   username: "",
   password: "",
+  priority: "1",
 });
 
 const createDefaultServers = () => ({
@@ -53,6 +54,7 @@ const createEditDraft = (server) => ({
   username: server.username,
   password: server.password,
   accessLevel: server.accessLevel,
+  priority: server.priority ?? 1,
 });
 
 export default function Reports({ language = "en" }) {
@@ -71,6 +73,7 @@ export default function Reports({ language = "en" }) {
   const [saveSuccess, setSaveSuccess] = useState("");
   const [editingServerUuid, setEditingServerUuid] = useState("");
   const [editDraft, setEditDraft] = useState(null);
+  const [filterType, setFilterType] = useState("all");
 
   const text = {
     pageTitle: isHebrew ? "שרתים" : "Servers",
@@ -96,6 +99,11 @@ export default function Reports({ language = "en" }) {
     cancel: isHebrew ? "ביטול" : "cancel",
     edit: isHebrew ? "עריכה" : "edit",
     delete: isHebrew ? "מחיקה" : "delete",
+    activity: isHebrew ? "סטטוס" : "activity",
+    priority: isHebrew ? "עדיפות" : "priority",
+    connected: isHebrew ? "מחובר" : "connected",
+    disconnected: isHebrew ? "לא מחובר" : "disconnected",
+    filterAll: isHebrew ? "כל הסוגים" : "all types",
     loadServersError: isHebrew
       ? "טעינת השרתים נכשלה."
       : "Failed to load servers.",
@@ -226,6 +234,7 @@ export default function Reports({ language = "en" }) {
           username: sectionData.username.trim(),
           password: sectionData.password,
           accessLevel: SECTION_TO_ACCESS_LEVEL[section.key],
+          priority: Number(sectionData.priority) || 1,
         },
       };
     });
@@ -298,6 +307,7 @@ export default function Reports({ language = "en" }) {
         username: editDraft.username.trim(),
         password: editDraft.password,
         accessLevel: editDraft.accessLevel,
+        priority: Number(editDraft.priority) || 1,
       });
       await loadServers();
       cancelEditing();
@@ -470,6 +480,17 @@ export default function Reports({ language = "en" }) {
                     }
                     disabled={!isSuperAdmin}
                   />
+                  <input
+                    className="search-input"
+                    type="number"
+                    min="1"
+                    placeholder={text.priority}
+                    value={sectionData.priority}
+                    onChange={(e) =>
+                      handleChange(section.key, "priority", e.target.value)
+                    }
+                    disabled={!isSuperAdmin}
+                  />
                 </div>
               </div>
             );
@@ -497,14 +518,27 @@ export default function Reports({ language = "en" }) {
         <div className="card reports-servers-card servers-card">
           <div className="reports-table-header-row">
             <h3 className="card-title">{text.servers}</h3>
-            <button
-              className="search-button reports-refresh-button"
-              type="button"
-              onClick={loadServers}
-              disabled={isLoading || isSubmitting}
-            >
-              {isLoading ? text.loading : text.refresh}
-            </button>
+            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+              <select
+                className="search-input"
+                style={{ minWidth: 130 }}
+                value={filterType}
+                onChange={(e) => setFilterType(e.target.value)}
+              >
+                <option value="all">{text.filterAll}</option>
+                <option value="audio">audio</option>
+                <option value="video">video</option>
+                <option value="blast_dial">blast-dial</option>
+              </select>
+              <button
+                className="search-button reports-refresh-button"
+                type="button"
+                onClick={loadServers}
+                disabled={isLoading || isSubmitting}
+              >
+                {isLoading ? text.loading : text.refresh}
+              </button>
+            </div>
           </div>
 
           {listError ? <div className="error-banner">{listError}</div> : null}
@@ -519,6 +553,8 @@ export default function Reports({ language = "en" }) {
                   <th>{text.port}</th>
                   <th>{text.username}</th>
                   <th>{text.password}</th>
+                  <th>{text.priority}</th>
+                  <th>{text.activity}</th>
                   <th>{text.actions}</th>
                 </tr>
               </thead>
@@ -526,12 +562,14 @@ export default function Reports({ language = "en" }) {
               <tbody>
                 {servers.length === 0 ? (
                   <tr>
-                    <td className="reports-empty-row" colSpan={7}>
+                    <td className="reports-empty-row" colSpan={9}>
                       {isLoading ? text.loadingServers : text.noServers}
                     </td>
                   </tr>
                 ) : (
-                  servers.map((server) => {
+                  servers
+                  .filter((s) => filterType === "all" || s.accessLevel === filterType)
+                  .map((server) => {
                     const isEditing = editingServerUuid === server.UUID;
                     const currentDraft = isEditing ? editDraft : null;
 
@@ -635,6 +673,34 @@ export default function Reports({ language = "en" }) {
                           ) : (
                             "********"
                           )}
+                        </td>
+                        <td>
+                          {isEditing ? (
+                            <input
+                              className="search-input reports-inline-input"
+                              type="number"
+                              min="1"
+                              style={{ width: 60 }}
+                              value={currentDraft.priority}
+                              onChange={(event) =>
+                                handleEditChange("priority", event.target.value)
+                              }
+                            />
+                          ) : (
+                            server.priority ?? 1
+                          )}
+                        </td>
+                        <td>
+                          <span style={{
+                            display: "inline-flex",
+                            alignItems: "center",
+                            gap: 5,
+                            fontWeight: 600,
+                            color: server.is_active ? "#22c55e" : "#ef4444",
+                          }}>
+                            <span style={{ fontSize: "0.75em" }}>●</span>
+                            {server.is_active ? text.connected : text.disconnected}
+                          </span>
                         </td>
                         <td>
                           <div className="reports-table-actions">

@@ -21,7 +21,7 @@ from app.models.meeting import AccessLevel, GroupMeeting, Meeting
 from app.models.member_group_access import MemberGroupAccess
 from app.models.favorite_meeting import FavoriteMeeting
 from app.schema.meeting import MeetingInCreate, MeetingInUpdate, MeetingOutput
-from app.service.cms import CMS
+from app.service.cms import CMS, CMSFactory
 from logger import LoggerManager
 
 CMS_TYPES = ("audio", "video")
@@ -103,15 +103,24 @@ class MeetingService:
             types = [av]
         else:
             types = list(CMS_TYPES)
-            if role == "admin" and responsible_access_level in CMS_TYPES:
-                types = [responsible_access_level]
+            if role == "admin":
+                from app.models.user import User
+                db_user = self.session.query(User).filter(User.UUID == user_uuid).first()
+                if db_user:
+                    allowed_types = []
+                    if getattr(db_user, "can_audio", False):
+                        allowed_types.append("audio")
+                    if getattr(db_user, "can_video", False):
+                        allowed_types.append("video")
+                    if allowed_types:
+                        types = allowed_types
 
         is_admin = role in ("admin", "super_admin")
         outputs: list[MeetingOutput] = []
         for t in types:
             allowed = None if is_admin else self._accessible_numbers(user_uuid, t)
             try:
-                cospaces = CMS(cms_type=t).list_cospaces(full_details=True)
+                cospaces = CMSFactory.get(self.session, t).list_cospaces(full_details=True)
             except Exception as error:
                 LoggerManager.get_logger().warning("Failed to list %s CoSpaces: %s", t, str(error))
                 continue
@@ -128,12 +137,19 @@ class MeetingService:
         """מחזיר (cospace, cms_type) עבור מספר פגישה, או (None, None)."""
         for t in CMS_TYPES:
             try:
-                cs = CMS(cms_type=t).get_cospace_by_uri(str(number))
+                cs = CMSFactory.get(self.session, t).get_cospace_by_uri(str(number))
             except Exception:
                 cs = None
             if cs:
                 return cs, t
         return None, None
+
+    def _find_cospace_by_type(self, number: str, cms_type: str):
+        """מחזיר cospace ספציפי לפי סוג CMS (audio/video), או None."""
+        try:
+            return CMSFactory.get(self.session, cms_type).get_cospace_by_uri(str(number))
+        except Exception:
+            return None
 
     def _ensure_meeting_exists(self, meeting_number: str, access_level: str) -> Meeting:
         """Ensure Meeting record exists in local database. Creates if missing."""
@@ -174,6 +190,20 @@ class MeetingService:
         ).all()
         return [link.meeting_number for link in links]
 
+    def _assert_admin_access(self, user_role: str, user_uuid: str, meeting_type: str):
+        """מוודא שאדמין מורשה לסוג הפגישה הזה לפי can_audio/can_video."""
+        if user_role != "admin":
+            return
+        from app.models.user import User
+        user = self.session.query(User).filter(User.UUID == user_uuid).first()
+        if not user:
+            return
+        mt = str(meeting_type).lower()
+        if mt == "audio" and not getattr(user, "can_audio", False):
+            raise HTTPException(status_code=403, detail="Admin not authorized for audio meetings")
+        if mt == "video" and not getattr(user, "can_video", False):
+            raise HTTPException(status_code=403, detail="Admin not authorized for video meetings")
+
     # ------------------------------------------------------------------
     # Write (ישירות ל-CMS)
     # ------------------------------------------------------------------
@@ -181,7 +211,7 @@ class MeetingService:
         av = str(getattr(access_level, "value", access_level)).lower()
         if av not in CMS_TYPES:
             raise HTTPException(status_code=400, detail="Only audio/video meetings are supported (blast_dial not supported yet)")
-        cms = CMS(cms_type=av)
+        cms = CMSFactory.get(self.session, av)
         if cms.get_cospace_by_uri(meeting_data.m_number):
             raise ValueError(f"Meeting number {meeting_data.m_number} already exists")
         cms.create_cospace(
@@ -195,11 +225,13 @@ class MeetingService:
         }
         return self._to_output(cs, av)
 
-    def delete_meeting(self, number) -> bool:
+    def delete_meeting(self, number, user_uuid: str = None, user_role: str = None) -> bool:
         cs, t = self._find_cospace(number)
+        if cs and user_uuid and user_role:
+            self._assert_admin_access(user_role, user_uuid, t)
         if cs:
             try:
-                CMS(cms_type=t).delete_cospace_by_uri(str(number))
+                CMSFactory.get(self.session, t).delete_cospace_by_uri(str(number))
                 LoggerManager.get_logger().info("Deleted CoSpace from %s CMS: %s", t, number)
             except Exception as error:
                 raise HTTPException(status_code=502, detail=f"CMS error: {str(error)}")
@@ -214,16 +246,21 @@ class MeetingService:
         self.session.commit()
         return True
 
-    def update_password_by_number(self, number, password: Optional[str], user_uuid: str, user_role: str) -> MeetingOutput:
-        cs, t = self._find_cospace(number)
+    def update_password_by_number(self, number, password: Optional[str], user_uuid: str, user_role: str, access_level_hint: str = None) -> MeetingOutput:
+        if access_level_hint and access_level_hint.lower() in CMS_TYPES:
+            t = access_level_hint.lower()
+            cs = self._find_cospace_by_type(number, t)
+        else:
+            cs, t = self._find_cospace(number)
         if not cs:
             raise HTTPException(status_code=404, detail="Meeting is not available")
         role = str(user_role or "").lower().strip()
+        self._assert_admin_access(role, user_uuid, t)
         if role not in ("admin", "super_admin"):
             if str(number) not in self._accessible_numbers(user_uuid, t):
                 raise HTTPException(status_code=403, detail="You are not allowed to update this meeting password")
         try:
-            CMS(cms_type=t).update_cospace_passcode_by_uri(str(number), password or "")
+            CMSFactory.get(self.session, t).update_cospace_passcode_by_uri(str(number), password or "")
         except Exception as error:
             raise HTTPException(status_code=502, detail=f"CMS error: {str(error)}")
         cs, _ = self._find_cospace(number)
@@ -244,7 +281,7 @@ class MeetingService:
 
         for cms_type in CMS_TYPES:
             try:
-                all_calls.extend([(c, cms_type) for c in CMS(cms_type=cms_type).get_active_calls()])
+                all_calls.extend([(c, cms_type) for c in CMSFactory.get(self.session, cms_type).get_active_calls()])
             except Exception as error:
                 LoggerManager.get_logger().warning("%s CMS unavailable for live stats: %s", cms_type, str(error))
                 warnings.append(f"{cms_type.capitalize()} CMS server is unreachable")
@@ -262,7 +299,7 @@ class MeetingService:
             if not call_id:
                 continue
             try:
-                participant_count = len(CMS(cms_type=cms_type).get_call_participants(call_id))
+                participant_count = len(CMSFactory.get(self.session, cms_type).get_call_participants(call_id))
             except Exception:
                 participant_count = 0
             stats[cms_type]["meetings"] += 1

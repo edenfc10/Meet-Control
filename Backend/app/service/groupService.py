@@ -1,16 +1,4 @@
-﻿# ============================================================================
-# GroupService - ×©×›×‘×ª ×œ×•×’×™×§×” ×¢×¡×§×™×ª ×œ×ž×“×•×¨×™×
-# ============================================================================
-# ×”×©×›×‘×” ×”×–×• ×ž×›×™×œ×” ××ª ×›×œ ×”×œ×•×’×™×§×” ×”×¢×¡×§×™×ª ×©×§×©×•×¨×” ×œ×ž×“×•×¨×™×:
-#   - CRUD ×ž×“×•×¨×™×: ×™×¦×™×¨×”, ×§×¨×™××”, ×¢×“×›×•×Ÿ, ×ž×—×™×§×”
-#   - × ×™×”×•×œ ×—×‘×¨×™×: ×”×•×¡×¤×” ×•×”×¡×¨×” ×¢× ×¨×ž×ª ×’×™×©×”
-#   - ניהול פגישות: שיוך פגישה למדור
-#   - המרה לפורמט פלט: _to_output ממיר ORM ל-Pydantic
-#
-# Pattern: Service Layer
-#   מתווך בין הRouter לבין הRepository.
-#   ×ž×•×¡×™×£ ×‘×“×™×§×•×ª ×•×–×¨×™×§×ª HTTPException ×‘×ž×§×¨×” ×©×œ ×©×’×™××”.
-# ============================================================================
+﻿
 
 from typing import Dict
 
@@ -162,16 +150,6 @@ class GroupService:
             if not self.__groupRepository.is_user_member_of_group(requester_uuid, group_uuid):
                 raise HTTPException(status_code=403, detail="Agent can only manage groups they belong to")
 
-        # admin עם responsible_access_level מוגבל רק לסוג שלו
-        if requester_role == "admin":
-            requester = self.__groupRepository._find_user(requester_uuid)
-            responsible_level = getattr(requester, "responsible_access_level", None)
-            if responsible_level and str(responsible_level) != str(access_level.value):
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Admin restricted to {responsible_level} access only"
-                )
-
         group = self.__groupRepository.add_member_to_group(
             group_uuid=group_uuid,
             user_s_id=user_s_id,
@@ -221,15 +199,13 @@ class GroupService:
             if not self.__groupRepository.is_user_member_of_group(requester_uuid, group_uuid):
                 raise HTTPException(status_code=403, detail="Agent can only manage groups they belong to")
 
-        # admin עם responsible_access_level מוגבל רק לסוג שלו
         if requester_role == "admin":
             requester = self.__groupRepository._find_user(requester_uuid)
-            responsible_level = getattr(requester, "responsible_access_level", None)
-            if responsible_level and str(responsible_level) != str(access_level.value):
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Admin restricted to {responsible_level} access only"
-                )
+            av = str(getattr(access_level, "value", access_level)).lower()
+            if av == "audio" and not getattr(requester, "can_audio", False):
+                raise HTTPException(status_code=403, detail="Admin not authorized for audio access")
+            if av == "video" and not getattr(requester, "can_video", False):
+                raise HTTPException(status_code=403, detail="Admin not authorized for video access")
 
         group = self.__groupRepository.remove_member_access_from_group(
             group_uuid=group_uuid,
@@ -240,24 +216,29 @@ class GroupService:
             return self._to_output(group)
         raise HTTPException(status_code=400, detail="Group or User is not available")
 
-    def add_meeting_to_group(self, group_uuid: str, meeting_number: str, requester_uuid: str = None, requester_role: str = None) -> GroupOutput:
+    def add_meeting_to_group(self, group_uuid: str, meeting_number: str, requester_uuid: str = None, requester_role: str = None, access_level_hint: str = None) -> GroupOutput:
         # סוג הפגישה נקבע לפי ה-CMS (audio/video) — גם מאמת שהפגישה קיימת
         # Handle composite ID format: "number:access_level"
         from app.service.meetingService import MeetingService
         actual_meeting_number = meeting_number.split(":")[0] if ":" in meeting_number else meeting_number
         meeting_service = MeetingService(session=self.session)
-        cs, meeting_type = meeting_service._find_cospace(actual_meeting_number)
-        if not cs or not meeting_type:
-            raise HTTPException(status_code=404, detail="Meeting not found in CMS")
+        # If access_level_hint is provided, use it directly to avoid wrong CMS type detection
+        if access_level_hint and access_level_hint.lower() in ("audio", "video"):
+            meeting_type = access_level_hint.lower()
+            cs = meeting_service._find_cospace_by_type(actual_meeting_number, meeting_type)
+            if not cs:
+                raise HTTPException(status_code=404, detail="Meeting not found in CMS")
+        else:
+            cs, meeting_type = meeting_service._find_cospace(actual_meeting_number)
+            if not cs or not meeting_type:
+                raise HTTPException(status_code=404, detail="Meeting not found in CMS")
 
         if requester_role == "admin" and requester_uuid:
             requester = self.__groupRepository._find_user(requester_uuid)
-            responsible_level = getattr(requester, "responsible_access_level", None)
-            if responsible_level and meeting_type != str(responsible_level).lower():
-                raise HTTPException(
-                    status_code=403,
-                    detail=f"Admin restricted to {responsible_level} meetings only",
-                )
+            if meeting_type == "audio" and not getattr(requester, "can_audio", False):
+                raise HTTPException(status_code=403, detail="Admin not authorized for audio meetings")
+            if meeting_type == "video" and not getattr(requester, "can_video", False):
+                raise HTTPException(status_code=403, detail="Admin not authorized for video meetings")
 
         meeting_service._ensure_meeting_exists(actual_meeting_number, meeting_type)
         group = self.__groupRepository.add_meeting_to_group_by_number(
@@ -267,10 +248,13 @@ class GroupService:
             return self._to_output(group)
         raise HTTPException(status_code=400, detail="Group or Meeting is not available")
 
-    def remove_meeting_from_group(self, group_uuid: str, meeting_number: str) -> GroupOutput:
+    def remove_meeting_from_group(self, group_uuid: str, meeting_number: str, access_level_hint: str = None) -> GroupOutput:
         from app.service.meetingService import MeetingService
         actual_meeting_number = meeting_number.split(":")[0] if ":" in meeting_number else meeting_number
-        _, meeting_type = MeetingService(session=self.session)._find_cospace(actual_meeting_number)
+        if access_level_hint and access_level_hint.lower() in ("audio", "video"):
+            meeting_type = access_level_hint.lower()
+        else:
+            _, meeting_type = MeetingService(session=self.session)._find_cospace(actual_meeting_number)
         group = self.__groupRepository.remove_meeting_from_group_by_number(
             group_uuid=group_uuid, meeting_number=actual_meeting_number, access_level=meeting_type,
         )

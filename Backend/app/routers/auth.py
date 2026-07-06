@@ -29,7 +29,7 @@ from app.schema.user import AccessTokenData, RefreshTokenData
 from app.schema.user import LoginResponse
 
 authRouter = APIRouter()  # יצירת Router לנתיבי auth
-validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent", "viewer"])
+validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 
 
 def _cookie_settings() -> dict:
@@ -54,13 +54,12 @@ def _cookie_settings() -> dict:
 @authRouter.post("/login", status_code=200)
 def login(
     loginDetails: UserInLogin,
+    response: Response,
     session: Session = Depends(get_db),
-    response: Response = LoginResponse,
 ):
     try:
         result = UserService(session=session).login(login_details=loginDetails)
         cookie_settings = _cookie_settings()
-        # Set the JWT token as a cookie
         if (
             response is not None
             and result
@@ -77,9 +76,12 @@ def login(
                 value=result.refresh_token,
                 **cookie_settings,
             )
-        return {"message": "Login successful", "role": result.role, "s_id": loginDetails.s_id}
+        return {"message": "Login successful", "role": result.role, "s_id": loginDetails.s_id, "responsible_access_level": result.responsible_access_level, "can_audio": result.can_audio, "can_video": result.can_video}
+    except HTTPException:
+        raise
     except Exception as error:
-        print(error)
+        import traceback
+        traceback.print_exc()
         raise HTTPException(
             status_code=500, detail="Internal Server Error - Login failed"
         )
@@ -122,6 +124,13 @@ def refresh_access_token(
         if not user:
             raise HTTPException(status_code=404, detail="User not exists")
 
+        try:
+            session.delete(db_token)
+            session.commit()
+        except Exception:
+            session.rollback()
+            raise HTTPException(status_code=401, detail="Invalid refresh token")
+
         new_access_token = AuthHand.generate_access_token(
             uuid=str(user_uuid), role=user.role, s_id=user.s_id
         )
@@ -129,9 +138,6 @@ def refresh_access_token(
 
         if not new_access_token or not new_refresh_token:
             raise HTTPException(status_code=500, detail="Failed to generate new tokens")
-        
-        session.delete(db_token)
-        session.commit()
 
         response.set_cookie(
             key="access_token", value=new_access_token, **cookie_settings

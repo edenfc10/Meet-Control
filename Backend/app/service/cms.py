@@ -47,6 +47,23 @@ class CMS:
         
         logger.info(f"CMS Client initialized for {self.base_url}")
     
+    @staticmethod
+    def check_connection(ip_address: str, port: int, username: str, password: str, timeout: int = 10) -> bool:
+        """בודק חיבור ל-CMS לפני שמירה ב-DB. מחזיר True אם השרת מגיב תקין."""
+        import urllib3
+        urllib3.disable_warnings()
+        base_url = f"https://{ip_address}:{port}/api/v1"
+        try:
+            resp = requests.get(
+                f"{base_url}/coSpaces",
+                auth=(username, password),
+                verify=False,
+                timeout=timeout,
+            )
+            return resp.status_code == 200
+        except Exception:
+            return False
+
     # HTTP Methods
     def cms_get(self, endpoint: str) -> requests.Response:
         """Make GET request to CMS API"""
@@ -371,13 +388,67 @@ class CMS:
             username=os.getenv('CMS_USERNAME'),
             password=os.getenv('CMS_PASSWORD')
         )
-    
-    def get_config_summary(self) -> Dict:
-        """Get current configuration summary"""
-        return {
-            "base_url": self.base_url,
-            "username": self.username,
-            "timeout": self.timeout,
-            "verify_ssl": self.verify_ssl,
-            "connected": self.test_connection()
-        }
+
+
+class CMSFactory:
+    """
+    Factory שמחזיר CMS מחובר לפי access_level.
+    מנסה שרתים מה-DB לפי priority (1=ראשי, 2=גיבוי...).
+    אם אף שרת DB לא זמין — נופל חזרה ל-env vars.
+    """
+
+    @staticmethod
+    def get(session, cms_type: str) -> 'CMS':
+        """
+        מחזיר CMS מחובר עבור cms_type ("audio"/"video").
+        מנסה שרתים מה-DB לפי priority עולה.
+        זורק HTTPException 503 אם אף שרת לא זמין.
+        """
+        from app.models.server import Server
+        from fastapi import HTTPException
+
+        servers = (
+            session.query(Server)
+            .filter(Server.accessLevel == cms_type)
+            .order_by(Server.priority.asc())
+            .limit(8)
+            .all()
+        )
+
+        for server in servers:
+            reachable = CMS.check_connection(
+                server.ip_address, server.port, server.username, server.password
+            )
+            if reachable:
+                logger.info(
+                    "CMSFactory: using server %s (%s:%s) priority=%s for %s",
+                    server.server_name, server.ip_address, server.port,
+                    server.priority, cms_type,
+                )
+                server.is_active = True
+                try:
+                    session.commit()
+                except Exception:
+                    session.rollback()
+                return CMS(
+                    base_url=f"https://{server.ip_address}:{server.port}",
+                    username=server.username,
+                    password=server.password,
+                )
+            else:
+                if server.is_active:
+                    server.is_active = False
+                    try:
+                        session.commit()
+                    except Exception:
+                        session.rollback()
+
+        if servers:
+            logger.error("CMSFactory: all %s DB servers unreachable", cms_type)
+            raise HTTPException(
+                status_code=503,
+                detail=f"All {cms_type} CMS servers are unreachable.",
+            )
+
+        logger.warning("CMSFactory: no DB servers for %s, falling back to env vars", cms_type)
+        return CMS(cms_type=cms_type)

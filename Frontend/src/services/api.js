@@ -15,37 +15,11 @@
 // ============================================================================
 
 import axios from "axios";
-import {
-  getMockCmsMeetings,
-  getMockCmsMeetingById,
-  createMockCmsMeeting,
-  updateMockCmsMeetingPassword,
-  deleteMockCmsMeeting,
-} from "../mocks/cmsMeetings";
-
-// כתובת הבסיס של ה-API - undefined יחזור ל-localhost, מחרוזת ריקה תשתמש ב-same-origin
-const API_URL = import.meta.env.VITE_API_URL ?? "http://localhost:8001"; // "http://192.168.1.30:8000"
-const CMS_MODE = (import.meta.env.VITE_CMS_MODE || "remote").toLowerCase();
-const CMS_URL = import.meta.env.VITE_CMS_URL || "";
-const CMS_API_KEY = import.meta.env.VITE_CMS_API_KEY || "";
 
 const api = axios.create({
   baseURL: '', // proxy via Vite: /auth, /users etc. → http://api:8000 (same-origin, cookies work)
   withCredentials: true,
 });
-
-const cmsClient = CMS_URL
-  ? axios.create({
-      baseURL: CMS_URL,
-      headers: {
-        "Content-Type": "application/json",
-        ...(CMS_API_KEY ? { Authorization: `Bearer ${CMS_API_KEY}` } : {}),
-      },
-      timeout: 8000,
-    })
-  : null;
-
-const useRemoteCms = CMS_MODE === "remote" && !!cmsClient;
 
 // --- Auth API: התחברות ובדיקת חיבור ---
 export const authAPI = {
@@ -85,10 +59,14 @@ export const groupAPI = {
     api.post(`/groups/${groupId}/remove-member-access/${userId}`, null, {
       params: { access_level: accessLevel },
     }),
-  addMeeting: (groupId, meetingUuid) =>
-    api.post(`/groups/${groupId}/add-meeting/${meetingUuid}`),
-  removeMeeting: (groupId, meetingUuid) =>
-    api.post(`/groups/${groupId}/remove-meeting/${meetingUuid}`),
+  addMeeting: (groupId, meetingUuid, accessLevel) =>
+    api.post(`/groups/${groupId}/add-meeting/${meetingUuid}`, null, {
+      params: accessLevel ? { access_level: accessLevel } : {},
+    }),
+  removeMeeting: (groupId, meetingUuid, accessLevel) =>
+    api.post(`/groups/${groupId}/remove-meeting/${meetingUuid}`, null, {
+      params: accessLevel ? { access_level: accessLevel } : {},
+    }),
 };
 
 // --- Meeting API: ניהול ישיבות ב-DB ---
@@ -107,8 +85,10 @@ export const meetingAPI = {
   updateMeetingByNumber: (number, meetingData) =>
     api.put(`/meetings/number/${number}`, meetingData),
   getMeetingsByGroup: (groupUuid) => api.get(`/meetings/group/${groupUuid}`),
-  updateMeetingPassword: (meetingUuid, newPassword) =>
-    api.put(`/meetings/password/${meetingUuid}`, { password: newPassword }),
+  updateMeetingPassword: (meetingNumber, newPassword, accessLevel) =>
+    api.put(`/meetings/password/${meetingNumber}`, { password: newPassword }, {
+      params: accessLevel ? { access_level: accessLevel } : {},
+    }),
   getParticipants: (meetingUuid) => api.get(`/meetings/${meetingUuid}/participants`),
   getLiveParticipants: (meetingUuid) => api.get(`/meetings/${meetingUuid}/live-participants`),
   getLiveStatus: () => api.get("/meetings/live-status"),
@@ -147,50 +127,6 @@ export const logsAPI = {
   },
   downloadAllLogs: () => {
     window.location.href = "/logs/download-all";
-  },
-};
-// --- CMS API: אינטגרציה עם CMS (כרגע mock מקומי, בעתיד יחליף ל-API אמיתי) ---
-export const cmsAPI = {
-  getMeetings: async (type) => {
-    if (useRemoteCms) {
-      return cmsClient.get("/meetings", {
-        params: type ? { type } : {},
-      });
-    }
-    const meetings = await getMockCmsMeetings(type);
-    return { data: meetings };
-  },
-  getMeetingById: async (meetingId) => {
-    if (useRemoteCms) {
-      return cmsClient.get(`/meetings/${meetingId}`);
-    }
-    const meeting = await getMockCmsMeetingById(meetingId);
-    return { data: meeting };
-  },
-  createMeeting: async (meetingData) => {
-    if (useRemoteCms) {
-      return cmsClient.post("/meetings", meetingData);
-    }
-    const meeting = await createMockCmsMeeting(meetingData);
-    return { data: meeting };
-  },
-  updateMeetingPassword: async (meetingId, newPassword) => {
-    if (useRemoteCms) {
-      return cmsClient.put(`/meetings/${meetingId}/password`, {
-        password: newPassword,
-      });
-    }
-    const meeting = await updateMockCmsMeetingPassword(meetingId, newPassword);
-    return { data: meeting };
-  },
-  deleteMeeting: async (meetingId, actor) => {
-    if (useRemoteCms) {
-      return cmsClient.delete(`/meetings/${meetingId}`, {
-        data: { actor },
-      });
-    }
-    const result = await deleteMockCmsMeeting(meetingId, actor);
-    return { data: result };
   },
 };
 

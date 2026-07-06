@@ -26,11 +26,17 @@ const normalizeUser = (payload) => {
   const user = payload?.user ?? payload ?? {};
   const rawRole = user?.role ?? "";
   const role = typeof rawRole === "string" ? rawRole : rawRole?.value || "";
+  const responsible_access_level =
+    user?.responsible_access_level || payload?.responsible_access_level || "";
+  const can_audio = user?.can_audio ?? payload?.can_audio ?? false;
+  const can_video = user?.can_video ?? payload?.can_video ?? false;
 
   return {
     s_id: user?.s_id || "",
     role,
-    responsible_access_level: user?.responsible_access_level || "",
+    responsible_access_level,
+    can_audio,
+    can_video,
   };
 };
 
@@ -38,12 +44,12 @@ const readCachedUser = () => {
   try {
     const cached = localStorage.getItem(AUTH_STORAGE_KEY);
     if (!cached) {
-      return { s_id: "", role: "" };
+      return { s_id: "", role: "", responsible_access_level: "", can_audio: false, can_video: false };
     }
 
     return normalizeUser(JSON.parse(cached));
   } catch {
-    return { s_id: "", role: "" };
+    return { s_id: "", role: "", responsible_access_level: "", can_audio: false, can_video: false };
   }
 };
 

@@ -32,7 +32,7 @@ export default function AudioMeetings({ language = "en" }) {
           name: m.name || "",
           accessLevel: m.accessLevel || "audio",
           password: m.password || "",
-          group: m.groups?.length ? m.groups[0] : "",
+          groups: m.groups || [],
           participantCount: m.participant_count ?? 0,
           status: "",
           isFavorite: favoriteSet.has(String(m.m_number || "")),

@@ -1,6 +1,6 @@
 ﻿import { useEffect, useMemo, useRef, useState } from "react";
 import { Navigate } from "react-router-dom";
-import { cmsAPI, groupAPI, meetingAPI, reportsAPI, userAPI } from "../services/api";
+import { groupAPI, meetingAPI, reportsAPI, userAPI } from "../services/api";
 import { useAuth } from "../context/AuthContext";
 import "./Reports.css";
 
@@ -120,14 +120,13 @@ export default function Reports({ language = "en" }) {
       setLoading(true);
       setError("");
 
-      const [meetingsResp, groupsResp, usersResp, cmsResp] =
+      const [meetingsResp, groupsResp, usersResp] =
         await Promise.allSettled([
           meetingAPI.getAllMeetings(),
           groupAPI.listGroups(),
           canReadAllUsers
             ? userAPI.getAllUsers()
             : Promise.resolve({ data: [] }),
-          cmsAPI.getMeetings(),
         ]);
 
       if (meetingsResp.status === "fulfilled") {
@@ -148,11 +147,7 @@ export default function Reports({ language = "en" }) {
         setUsers([]);
       }
 
-      if (cmsResp.status === "fulfilled") {
-        setCmsMeetings(cmsResp.value.data || []);
-      } else {
-        setCmsMeetings([]);
-      }
+      setCmsMeetings(meetingsResp.status === "fulfilled" ? (meetingsResp.value.data || []) : []);
 
       const allFailed =
         meetingsResp.status === "rejected" &&

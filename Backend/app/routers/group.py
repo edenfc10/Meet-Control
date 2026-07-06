@@ -227,7 +227,7 @@ def remove_member_access_from_group(
 # --- POST /groups/{uuid}/add-meeting/{meeting_uuid} ---
 # משייך פגישה קיימת לקבוצה
 @groupRouter.post("/{group_uuid}/add-meeting/{meeting_number}", status_code=200, response_model=GroupOutput)
-def add_meeting_to_group(group_uuid: str, meeting_number: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+def add_meeting_to_group(group_uuid: str, meeting_number: str, access_level: str = None, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
         LoggerManager.get_logger().info(
             "User %s:%s with role %s is adding meeting number=%s to group UUID=%s",
@@ -239,6 +239,7 @@ def add_meeting_to_group(group_uuid: str, meeting_number: str, session: Session 
             meeting_number=meeting_number,
             requester_uuid=str(user.UUID),
             requester_role=user_role,
+            access_level_hint=access_level,
         )
     except HTTPException as http_error:
         raise http_error
@@ -251,13 +252,13 @@ def add_meeting_to_group(group_uuid: str, meeting_number: str, session: Session 
 # --- POST /groups/{uuid}/remove-meeting/{meeting_number} ---
 # מסיר שיוך פגישה מקבוצה
 @groupRouter.post("/{group_uuid}/remove-meeting/{meeting_number}", status_code=200, response_model=GroupOutput)
-def remove_meeting_from_group(group_uuid: str, meeting_number: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+def remove_meeting_from_group(group_uuid: str, meeting_number: str, access_level: str = None, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
         LoggerManager.get_logger().info(
             "User %s:%s with role %s is removing meeting number=%s from group UUID=%s",
             user.s_id, user.UUID, user.role.value, meeting_number, group_uuid,
         )
-        return GroupService(session=session).remove_meeting_from_group(group_uuid=group_uuid, meeting_number=meeting_number)
+        return GroupService(session=session).remove_meeting_from_group(group_uuid=group_uuid, meeting_number=meeting_number, access_level_hint=access_level)
     except HTTPException as http_error:
         raise http_error
     except Exception as error:

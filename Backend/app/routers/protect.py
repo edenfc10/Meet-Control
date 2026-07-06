@@ -31,5 +31,5 @@ protectRouter = APIRouter()
 
 
 @protectRouter.get("/me")
-def get_protected_data(user: UserOutput = Depends(validator)):
-    return {"message": "This is a protected route", "user": user}
+def get_protected_data(user=Depends(validator)):
+    return {"message": "This is a protected route", "user": UserOutput.model_validate(user)}

@@ -42,8 +42,8 @@ class Group(Base):
 
     @property
     def meeting_numbers(self):
-        """רשימת מספרי הפגישות המשויכות למדור."""
-        return [link.meeting_number for link in self.meeting_links]
+        """רשימת מפתחות פגישות בפורמט 'meeting_number:access_level' למניעת כפילויות."""
+        return [f"{link.meeting_number}:{link.access_level}" for link in self.meeting_links]
     # ×¨×ž×•×ª ×’×™×©×” - ×ž×’×“×™×¨ ××™×–×• ×¨×ž×ª ×’×™×©×” ×œ×›×œ ×—×‘×¨ ×‘×ž×“×•×¨
     member_access_levels = relationship(
         "MemberGroupAccess", back_populates="group", cascade="all, delete-orphan"

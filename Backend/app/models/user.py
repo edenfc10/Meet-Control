@@ -13,10 +13,11 @@
 
 from enum import Enum
 import uuid
-from sqlalchemy import Column, ForeignKey, Integer, String, Enum as SqlEnum, Table
+from sqlalchemy import Boolean, Column, ForeignKey, Integer, String, Enum as SqlEnum, Table
 from sqlalchemy.orm import relationship
 from app.core.database import Base
 from sqlalchemy.dialects.postgresql import UUID as PostgresUUID
+import app.models.favorite_meeting  # noqa: F401 - ensures FavoriteMeeting is registered before User mapper resolves relationships
 
 
 # --- UserRole Enum - תפקידי המשתמש ---
@@ -43,6 +44,8 @@ class User(Base):
     password = Column(String(250), nullable=False)
 
     responsible_access_level = Column(String(20), nullable=True)
+    can_audio = Column(Boolean, nullable=False, default=False)
+    can_video = Column(Boolean, nullable=False, default=False)
     # תפקיד המשתמש - ברירת מחדל: agent
     role = Column(SqlEnum(UserRole), nullable=False, default=UserRole.agent)
 
@@ -51,8 +54,6 @@ class User(Base):
     group_access_levels = relationship(
         "MemberGroupAccess", back_populates="member", cascade="all, delete-orphan"
     )
-    # Favorite meetings (cascade delete when user is removed)
     favorites = relationship(
-        "FavoriteMeeting", back_populates="member", cascade="all, delete-orphan",
-        doc="Meetings this user has marked as favorites"
+        "FavoriteMeeting", back_populates="member", cascade="all, delete-orphan"
     )

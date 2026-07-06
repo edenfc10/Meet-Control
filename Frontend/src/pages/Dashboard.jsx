@@ -151,7 +151,7 @@ export default function Dashboard({ language = "en" }) {
     setSaving(true);
     setEditError("");
     try {
-      await meetingAPI.updateMeetingPassword(meeting.meeting_uuid, editPassword.trim() || null);
+      await meetingAPI.updateMeetingPassword(meeting.m_number, editPassword.trim() || null, meeting.accessLevel);
       setEditId(null);
       setEditPassword("");
       showToast(isHebrew ? "סיסמא עודכנה בהצלחה" : "Password updated successfully");

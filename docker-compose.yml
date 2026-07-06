@@ -1,8 +1,5 @@
 # ============================================================================
-# Meet Stack - Edge app (Frontend + Backend + DB)
-# ----------------------------------------------------------------------------
-# Meet connects to Census API for CMS operations.
-# Meet has its own local database for user/group data.
+# Meet Stack - Frontend + Backend + DB
 # ============================================================================
 
 services:
@@ -24,7 +21,7 @@ services:
     networks:
       - meet-network
 
-  # --- FastAPI Backend (connects to Census API) ---
+  # --- FastAPI Backend ---
   api:
     build:
       context: ./Backend
@@ -35,10 +32,6 @@ services:
     ports:
       - "8001:8000"
     environment:
-      # Census API connection
-      - CENSUS_HOST=192.168.1.30
-      - CENSUS_PORT=8001
-      - CENSUS_PROTOCOL=http
       # Local database
       - POSTGRES_HOST=db
       - POSTGRES_USER=admin
@@ -97,8 +90,7 @@ services:
       - api
     environment:
       - VITE_API_URL=http://localhost:8001 # http://192.168.1.30:8000
-      - VITE_CMS_MODE=mock # census
-      - VITE_CENSUS_URL=http://localhost:8001 # http://192.168.1.30:8001
+      - VITE_CMS_MODE=remote
     logging:
       driver: json-file
       options:

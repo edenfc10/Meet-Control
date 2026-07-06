@@ -157,11 +157,19 @@ export default function App() {
 
                   <Route
                     path="/audio-meetings"
-                    element={<AudioMeetings language={language} />}
+                    element={
+                      currentUser?.role === "admin" && currentUser?.responsible_access_level && currentUser.responsible_access_level !== "audio"
+                        ? <Navigate to="/dashboard" replace />
+                        : <AudioMeetings language={language} />
+                    }
                   />
                   <Route
                     path="/video-meetings"
-                    element={<VideoMeetings language={language} />}
+                    element={
+                      currentUser?.role === "admin" && currentUser?.responsible_access_level && currentUser.responsible_access_level !== "video"
+                        ? <Navigate to="/dashboard" replace />
+                        : <VideoMeetings language={language} />
+                    }
                   />
                   <Route
                     path="/blast-dial-meetings"

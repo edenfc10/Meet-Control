@@ -92,7 +92,6 @@ class FavoriteMeeting(Base):
     # -----------------------------------------------------------------------
     member = relationship(
         "User",
-        back_populates="favorites",
         doc="The user who marked this as favorite"
     )
     meeting = relationship(

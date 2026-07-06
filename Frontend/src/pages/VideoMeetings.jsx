@@ -32,7 +32,7 @@ export default function VideoMeetings({ language = "en" }) {
           name: m.name || "",
           accessLevel: m.accessLevel || "video",
           password: m.password || "",
-          group: m.groups?.length ? m.groups[0] : "",
+          groups: m.groups || [],
           participantCount: m.participant_count ?? 0,
           status: "",
           isFavorite: favoriteSet.has(String(m.m_number || "")),
