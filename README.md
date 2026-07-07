@@ -867,7 +867,7 @@ This change was made because the CMS API was not accepting XML payloads correctl
 
 ---
 
-
+## Recent Changes
 
 ### Groups Page — Meeting Search & Filter Enhancements
 
@@ -901,8 +901,6 @@ This change was made because the CMS API was not accepting XML payloads correctl
 
 - All `ET.fromstring(response.text)` calls replaced with `ET.fromstring(response.content)` in `cms.py`
 - Fixes Hebrew meeting names displaying as garbled characters — Python now reads encoding from the XML declaration instead of guessing
-
----
 
 ### Multi-Group Meeting Support
 
