@@ -867,7 +867,7 @@ This change was made because the CMS API was not accepting XML payloads correctl
 
 ---
 
-## Recent Changes (July 7, 2026)
+
 
 ### Groups Page — Meeting Search & Filter Enhancements
 
@@ -903,8 +903,6 @@ This change was made because the CMS API was not accepting XML payloads correctl
 - Fixes Hebrew meeting names displaying as garbled characters — Python now reads encoding from the XML declaration instead of guessing
 
 ---
-
-## Recent Changes (July 6, 2026)
 
 ### Multi-Group Meeting Support
 
