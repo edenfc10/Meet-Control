@@ -14,7 +14,6 @@ const labels = {
     audio: "Audio",
     video: "Video",
     blast_dial: "Blast Dial",
-    unknown: "Unknown",
     meetings: "Meetings",
     participants: "Participants",
   },
@@ -22,7 +21,6 @@ const labels = {
     audio: "אודיו",
     video: "וידאו",
     blast_dial: "הזנקה",
-    unknown: "לא ידוע",
     meetings: "פגישות",
     participants: "משתתפים",
   },
@@ -46,11 +44,6 @@ export default function LiveActivityChart({ data = {}, language = "en" }) {
       name: text.blast_dial,
       meetings: data.blast_dial?.meetings ?? 0,
       participants: data.blast_dial?.participants ?? 0,
-    },
-    {
-      name: text.unknown,
-      meetings: data.unknown?.meetings ?? 0,
-      participants: data.unknown?.participants ?? 0,
     },
   ];
 

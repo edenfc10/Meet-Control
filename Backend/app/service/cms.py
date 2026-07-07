@@ -190,7 +190,7 @@ class CMS:
         """Get CoSpace details"""
         response = self.cms_get(f'coSpaces/{cospace_id}')
         if response.status_code == 200:
-            return self._parse_xml_response(response.text)
+            return self._parse_xml_response(response.content)
         else:
             raise Exception(f"Failed to get CoSpace details: {response.status_code} - {response.text}")
     
@@ -199,7 +199,7 @@ class CMS:
         response = self.cms_get('coSpaces')
         if response.status_code != 200:
             raise Exception(f"Failed to list CoSpaces: {response.status_code} - {response.text}")
-        root = ET.fromstring(response.text)
+        root = ET.fromstring(response.content)
         cospaces = []
         for cospace in root.findall('coSpace'):
             cs = self._xml_element_to_dict(cospace)
@@ -220,7 +220,7 @@ class CMS:
         """Get all active calls"""
         response = self.cms_get('calls')
         if response.status_code == 200:
-            root = ET.fromstring(response.text)
+            root = ET.fromstring(response.content)
             calls = []
             for call in root.findall('call'):
                 calls.append(self._xml_element_to_dict(call))
@@ -232,7 +232,7 @@ class CMS:
         """Get call details"""
         response = self.cms_get(f'calls/{call_id}')
         if response.status_code == 200:
-            return self._parse_xml_response(response.text)
+            return self._parse_xml_response(response.content)
         else:
             raise Exception(f"Failed to get call details: {response.status_code} - {response.text}")
     
@@ -240,7 +240,7 @@ class CMS:
         """Get call participants"""
         response = self.cms_get(f'calls/{call_id}')
         if response.status_code == 200:
-            root = ET.fromstring(response.text)
+            root = ET.fromstring(response.content)
             participants = []
             for participant in root.findall('.//participant'):
                 participants.append(self._xml_element_to_dict(participant))
@@ -322,10 +322,11 @@ class CMS:
         return []
 
     # Utility Methods
-    def _parse_xml_response(self, xml_text: str) -> Dict:
+    def _parse_xml_response(self, xml_text) -> Dict:
         """Parse XML response to dictionary"""
         try:
-            root = ET.fromstring(xml_text)
+            content = xml_text if isinstance(xml_text, bytes) else xml_text.encode('utf-8')
+            root = ET.fromstring(content)
             return self._xml_element_to_dict(root)
         except ET.ParseError as e:
             logger.error(f"Failed to parse XML response: {e}")

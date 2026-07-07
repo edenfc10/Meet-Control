@@ -867,6 +867,43 @@ This change was made because the CMS API was not accepting XML payloads correctl
 
 ---
 
+## Recent Changes (July 7, 2026)
+
+### Groups Page — Meeting Search & Filter Enhancements
+
+- Added **type filter dropdown** (All / Audio / Video / Blast Dial) above the meeting search input in the Add Meetings section
+- Meeting search now searches by **number, name, and type** (previously number only)
+- Meeting list items now display `#number — Name (type)` format
+- Assigned meetings table now includes a **Name column**
+- Type filter resets to "All" when opening a new group modal
+
+### Groups Page — Member Search Enhancements
+
+- Added **role filter dropdown** (All roles / Agent / Admin) above the member search input in the Add Member section
+- Member search upgraded from `startsWith` to `includes` for broader matching
+- Role filter resets when opening a new group modal
+
+### Groups Page — Code Refactor
+
+- `Groups.jsx` (~1,300 lines) split into three focused files:
+  - `Groups.jsx` (~500 lines) — orchestrator: group list, create/edit/delete, modal open/close
+  - `GroupMembersPanel.jsx` — all member management logic and UI (add, remove, access levels, role filter)
+  - `GroupMeetingsPanel.jsx` — all meeting assignment logic and UI (add, remove, type filter, name search)
+- No functional changes — pure structural refactor
+
+### Dashboard — "Unknown" Category Removed
+
+- Meetings with an unrecognized `accessLevel` are now silently skipped in live stats (no longer shown as "unknown")
+- `LiveActivityChart.jsx` — removed "unknown" from chart labels and data
+- `Dashboard.jsx` — `meetings.forEach` now skips non-audio/video/blast_dial meetings
+
+### CMS XML Encoding Fix (Hebrew Support)
+
+- All `ET.fromstring(response.text)` calls replaced with `ET.fromstring(response.content)` in `cms.py`
+- Fixes Hebrew meeting names displaying as garbled characters — Python now reads encoding from the XML declaration instead of guessing
+
+---
+
 ## Recent Changes (July 6, 2026)
 
 ### Multi-Group Meeting Support

@@ -102,7 +102,6 @@ export default function Dashboard({ language = "en" }) {
       audio: { meetings: 0, participants: 0 },
       video: { meetings: 0, participants: 0 },
       blast_dial: { meetings: 0, participants: 0 },
-      unknown: { meetings: 0, participants: 0 },
     },
   });
   const [liveLoading, setLiveLoading] = useState(true);
@@ -334,13 +333,10 @@ export default function Dashboard({ language = "en" }) {
         audio: { meetings: 0, participants: 0 },
         video: { meetings: 0, participants: 0 },
         blast_dial: { meetings: 0, participants: 0 },
-        unknown: { meetings: 0, participants: 0 },
       };
       meetings.forEach((m) => {
-        const mtType = String(m.accessLevel || "").toLowerCase();
-        const type = ["audio", "video", "blast_dial"].includes(mtType)
-          ? mtType
-          : "unknown";
+        const type = String(m.accessLevel || "").toLowerCase();
+        if (!["audio", "video", "blast_dial"].includes(type)) return;
         dbStats[type].meetings += 1;
         dbStats[type].participants += m.participant_count ?? 0;
       });
@@ -376,22 +372,12 @@ export default function Dashboard({ language = "en" }) {
           participants:
             cmsStats?.blast_dial?.participants ?? dbStats.blast_dial.participants,
         },
-        unknown: {
-          meetings: dbStats.unknown.meetings,
-          participants: cmsStats?.unknown?.participants ?? dbStats.unknown.participants,
-        },
       };
 
       setLiveStats({
         total_active: meetings.length,
         by_type: stats,
       });
-      setLiveWarning(
-        cmsWarning ||
-          (isHebrew
-            ? "מספרי ועידות מבסיס הנתונים, משתתפים חיים מ-CMS כשזמין"
-            : "Meeting counts from database, live participants from CMS when available")
-      );
       setLastUpdated(new Date());
     } catch (err) {
       setLiveError(
@@ -647,7 +633,7 @@ export default function Dashboard({ language = "en" }) {
                     {favorites.map((meeting) => (
                       <div
                         key={meeting.meeting_uuid}
-                        className={`meeting-item fav-meeting-item fav-type-${(meeting.accessLevel || "unknown").toLowerCase()}`}
+                        className={`meeting-item fav-meeting-item fav-type-${(meeting.accessLevel).toLowerCase()}`}
                       >
                         <div className="fav-meeting-accent"></div>
                         <div className="fav-meeting-main">
