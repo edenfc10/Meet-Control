@@ -22,7 +22,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.orm import Session
 
 from app.core.database import get_db
-from app.schema.meeting import MeetingInCreate, MeetingOutput, MeetingPasswordUpdate
+from app.schema.meeting import MeetingInCreate, MeetingOutput, MeetingPasswordUpdate, MeetingNameUpdate
 from app.security.TokenValidator import TokenValidator
 from app.service.meetingService import MeetingService
 from app.service.cms import CMS
@@ -131,6 +131,27 @@ def delete_meeting(meeting_number: str, session: Session = Depends(get_db), user
         raise
     except Exception as error:
         LoggerManager.get_logger().exception("Failed to delete meeting number=%s. Error: %s", meeting_number, str(error))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
+@meetingRouter.put("/name/{meeting_number}", status_code=200, response_model=MeetingOutput)
+def update_meeting_name(meeting_number: str, meeting_data: MeetingNameUpdate, access_level: str = None, session: Session = Depends(get_db), user=Depends(validator)):
+    user_role = str(getattr(user.role, "value", user.role)).lower().strip()
+    try:
+        LoggerManager.get_logger().info(
+            "User %s:%s (role %s) updating name for meeting number=%s",
+            user.s_id, user.UUID, user_role, meeting_number,
+        )
+        return MeetingService(session=session).update_name_by_number(
+            number=meeting_number,
+            name=meeting_data.name,
+            user_uuid=str(user.UUID),
+            user_role=user_role,
+            access_level_hint=access_level,
+        )
+    except HTTPException:
+        raise
+    except Exception as error:
+        LoggerManager.get_logger().exception("Failed to update meeting name number=%s. Error: %s", meeting_number, str(error))
         raise HTTPException(status_code=500, detail="Internal Server Error")
 
 

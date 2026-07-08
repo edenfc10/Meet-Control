@@ -89,6 +89,10 @@ export const meetingAPI = {
     api.put(`/meetings/password/${meetingNumber}`, { password: newPassword }, {
       params: accessLevel ? { access_level: accessLevel } : {},
     }),
+  updateMeetingName: (meetingNumber, newName, accessLevel) =>
+    api.put(`/meetings/name/${meetingNumber}`, { name: newName }, {
+      params: accessLevel ? { access_level: accessLevel } : {},
+    }),
   getParticipants: (meetingUuid) => api.get(`/meetings/${meetingUuid}/participants`),
   getLiveParticipants: (meetingUuid) => api.get(`/meetings/${meetingUuid}/live-participants`),
   getLiveStatus: () => api.get("/meetings/live-status"),

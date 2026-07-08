@@ -58,7 +58,8 @@ export default function Dashboard({ language = "en" }) {
   const userRole = currentUser?.role?.toLowerCase() || "";
   const isAdmin = userRole === "admin" || userRole === "super_admin";
   const isStaff = isAdmin || userRole === "agent";
-  const canEditPassword = isStaff;
+  const canEditPassword = isAdmin;
+  const canEditName = isAdmin;
 
   const [favorites, setFavorites] = useState([]);
   const [favLoading, setFavLoading] = useState(true);
@@ -69,6 +70,10 @@ export default function Dashboard({ language = "en" }) {
   const [editPassword, setEditPassword] = useState("");
   const [editError, setEditError] = useState("");
   const [saving, setSaving] = useState(false);
+  const [editNameId, setEditNameId] = useState(null);
+  const [editName, setEditName] = useState("");
+  const [editNameError, setEditNameError] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const [deletingId, setDeletingId] = useState(null);
   const [deleteError, setDeleteError] = useState("");
   const [meetingToDelete, setMeetingToDelete] = useState(null);
@@ -146,6 +151,24 @@ export default function Dashboard({ language = "en" }) {
       .catch(() => {});
   }, []);
 
+  const handleEditNameSave = async (meeting) => {
+    const newName = editName.trim();
+    if (!newName) return;
+    setSavingName(true);
+    setEditNameError("");
+    try {
+      await meetingAPI.updateMeetingName(meeting.m_number, newName, meeting.accessLevel);
+      setEditNameId(null);
+      setEditName("");
+      showToast(isHebrew ? "שם עודכן בהצלחה" : "Name updated successfully");
+      await loadFavorites();
+    } catch (err) {
+      setEditNameError(err.response?.data?.detail || (isHebrew ? "עדכון השם נכשל" : "Failed to update name"));
+    } finally {
+      setSavingName(false);
+    }
+  };
+
   const handleEditSave = async (meeting) => {
     setSaving(true);
     setEditError("");
@@ -175,13 +198,17 @@ export default function Dashboard({ language = "en" }) {
 
   const confirmDeleteMeeting = async () => {
     if (!meetingToDelete) return;
-    setDeletingId(meetingToDelete.meeting_uuid);
+    setDeletingId(meetingToDelete.m_number);
     setDeleteError("");
     try {
-      await meetingAPI.deleteMeeting(meetingToDelete.meeting_uuid);
-      if (editId === meetingToDelete.meeting_uuid) {
+      await meetingAPI.deleteMeeting(meetingToDelete.m_number);
+      if (editId === meetingToDelete.m_number) {
         setEditId(null);
         setEditPassword("");
+      }
+      if (editNameId === meetingToDelete.m_number) {
+        setEditNameId(null);
+        setEditName("");
       }
       closeDeleteConfirm();
       showToast(isHebrew ? "הוועידה נמחקה" : "Meeting deleted", "info");
@@ -204,7 +231,7 @@ export default function Dashboard({ language = "en" }) {
     setLiveParticipantsError("");
     setParticipantsLoading(true);
     try {
-      const resp = await meetingAPI.getParticipants(meeting.meeting_uuid);
+      const resp = await meetingAPI.getParticipants(meeting.m_number);
       setParticipants(resp.data.participants || []);
     } catch {
       setParticipantsError(isHebrew ? "טעינת משתתפים נכשלה" : "Failed to load participants");
@@ -219,7 +246,7 @@ export default function Dashboard({ language = "en" }) {
     setLiveParticipantsError("");
     setLiveParticipantsLoading(true);
     try {
-      const resp = await meetingAPI.getLiveParticipants(meeting.meeting_uuid);
+      const resp = await meetingAPI.getLiveParticipants(meeting.m_number);
       setLiveParticipants(resp.data.participants || []);
       setLiveCallId(resp.data.call_id || null);
     } catch {
@@ -240,7 +267,7 @@ export default function Dashboard({ language = "en" }) {
     if (!participantsModal) return;
     setMuteLoadingId(legId);
     try {
-      await meetingAPI.muteParticipant(participantsModal.meeting_uuid, liveCallId, legId, !currentMute);
+      await meetingAPI.muteParticipant(participantsModal.m_number, liveCallId, legId, !currentMute);
       setLiveParticipants((prev) =>
         prev.map((p) =>
           (p.legId || p["@id"]) === legId ? { ...p, mute: (!currentMute).toString() } : p
@@ -257,7 +284,7 @@ export default function Dashboard({ language = "en" }) {
     if (!participantsModal) return;
     setKickLoadingId(legId);
     try {
-      await meetingAPI.kickParticipant(participantsModal.meeting_uuid, liveCallId, legId);
+      await meetingAPI.kickParticipant(participantsModal.m_number, liveCallId, legId);
       setLiveParticipants((prev) => prev.filter((p) => (p.legId || p["@id"]) !== legId));
     } catch {
       setLiveParticipantsError(isHebrew ? "פעולת ההסרה נכשלה" : "Kick action failed");
@@ -285,11 +312,11 @@ export default function Dashboard({ language = "en" }) {
         ? String(assignGroupModal.groups[0]).toLowerCase()
         : "";
       if (currentGroupKey && currentGroupKey !== assignGroupId) {
-        await groupAPI.removeMeeting(currentGroupKey, assignGroupModal.meeting_uuid);
+        await groupAPI.removeMeeting(currentGroupKey, assignGroupModal.m_number);
       }
       if (assignGroupId) {
         const targetUUID = Object.keys(groupMap).find((k) => k === assignGroupId);
-        if (targetUUID) await groupAPI.addMeeting(targetUUID, assignGroupModal.meeting_uuid);
+        if (targetUUID) await groupAPI.addMeeting(targetUUID, assignGroupModal.m_number);
       }
       setAssignGroupModal(null);
       showToast(isHebrew ? "שיוך המדור עודכן בהצלחה" : "Group assigned successfully");
@@ -308,7 +335,7 @@ export default function Dashboard({ language = "en" }) {
     setAssignError("");
     try {
       const currentGroupKey = String(assignGroupModal.groups[0]).toLowerCase();
-      await groupAPI.removeMeeting(currentGroupKey, assignGroupModal.meeting_uuid);
+      await groupAPI.removeMeeting(currentGroupKey, assignGroupModal.m_number);
       setAssignGroupModal(null);
       setConfirmRemoveAssign(false);
       showToast(isHebrew ? "שיוך המדור הוסר בהצלחה" : "Group assignment removed", "info");
@@ -419,6 +446,7 @@ export default function Dashboard({ language = "en" }) {
         noPassword: "ללא סיסמה",
         remove: "הסר",
         removeFavorite: "הסר",
+        editName: "שם",
         editPassword: "סיסמה",
         delete: "מחק",
         deleteMeeting: "מחק",
@@ -472,6 +500,7 @@ export default function Dashboard({ language = "en" }) {
         noPassword: "No password",
         remove: "Remove",
         removeFavorite: "Remove",
+        editName: "Name",
         editPassword: "Password",
         delete: "Delete",
         deleteMeeting: "Delete",
@@ -632,14 +661,14 @@ export default function Dashboard({ language = "en" }) {
                   <div className="meetings-list" style={{ marginTop: "8px" }}>
                     {favorites.map((meeting) => (
                       <div
-                        key={meeting.meeting_uuid}
+                        key={meeting.m_number}
                         className={`meeting-item fav-meeting-item fav-type-${(meeting.accessLevel).toLowerCase()}`}
                       >
                         <div className="fav-meeting-accent"></div>
                         <div className="fav-meeting-main">
                           <div className="fav-meeting-header">
                             <span className="fav-meeting-id">
-                              #{meeting.m_number}
+                              #{meeting.m_number}{meeting.name ? ` — ${meeting.name}` : ""}
                             </span>
                             <span className="fav-meeting-type">
                               {meeting.accessLevel || "—"}
@@ -658,20 +687,37 @@ export default function Dashboard({ language = "en" }) {
                           <div className="fav-meeting-actions">
                             <button
                               className="meeting-favorite-btn active"
-                              onClick={() => handleRemoveFavorite(meeting.meeting_uuid)}
+                              onClick={() => handleRemoveFavorite(meeting.m_number)}
                             >
                               <span className="action-btn-content">
                                 <span className="action-btn-icon"><FavoriteIcon /></span>
                                 <span>{labels.removeFavorite}</span>
                               </span>
                             </button>
-                            {isStaff && (
+                            {canEditName && String(meeting.accessLevel).toLowerCase() !== "audio" && (
                               <button
                                 className="meeting-edit-btn"
                                 onClick={() => {
-                                  setEditId(meeting.meeting_uuid);
+                                  setEditNameId(meeting.m_number);
+                                  setEditName(meeting.name || "");
+                                  setEditNameError("");
+                                  setEditId(null);
+                                }}
+                              >
+                                <span className="action-btn-content">
+                                  <span className="action-btn-icon"><EditIcon /></span>
+                                  <span>{labels.editName}</span>
+                                </span>
+                              </button>
+                            )}
+                            {canEditPassword && (
+                              <button
+                                className="meeting-edit-btn"
+                                onClick={() => {
+                                  setEditId(meeting.m_number);
                                   setEditPassword(meeting.password || "");
                                   setEditError("");
+                                  setEditNameId(null);
                                 }}
                               >
                                 <span className="action-btn-content">
@@ -684,11 +730,11 @@ export default function Dashboard({ language = "en" }) {
                               <button
                                 className="meeting-delete-btn"
                                 onClick={() => handleDelete(meeting)}
-                                disabled={deletingId === meeting.meeting_uuid}
+                                disabled={deletingId === meeting.m_number}
                               >
                                 <span className="action-btn-content">
                                   <span className="action-btn-icon"><DeleteIcon /></span>
-                                  <span>{deletingId === meeting.meeting_uuid ? labels.deleting : labels.delete}</span>
+                                  <span>{deletingId === meeting.m_number ? labels.deleting : labels.delete}</span>
                                 </span>
                               </button>
                             )}
@@ -713,7 +759,32 @@ export default function Dashboard({ language = "en" }) {
                               </button>
                             )}
                           </div>
-                          {canEditPassword && editId === meeting.meeting_uuid && (
+                          {canEditName && editNameId === meeting.m_number && (
+                            <div className="meeting-edit-row">
+                              <input
+                                type="text"
+                                placeholder={isHebrew ? "שם חדש" : "New name"}
+                                value={editName}
+                                onChange={(e) => setEditName(e.target.value)}
+                                className="meetings-create-input"
+                              />
+                              <button
+                                className="meetings-create-submit"
+                                onClick={() => handleEditNameSave(meeting)}
+                                disabled={savingName}
+                              >
+                                {savingName ? labels.saving : labels.save}
+                              </button>
+                              <button
+                                className="meeting-cancel-btn"
+                                onClick={() => { setEditNameId(null); setEditName(""); }}
+                              >
+                                {labels.cancel}
+                              </button>
+                              {editNameError && <span className="meetings-error">{editNameError}</span>}
+                            </div>
+                          )}
+                          {canEditPassword && editId === meeting.m_number && (
                             <div className="meeting-edit-row">
                               <input
                                 type="text"
@@ -940,15 +1011,15 @@ export default function Dashboard({ language = "en" }) {
           <div className="modal-card" onClick={(e) => e.stopPropagation()}>
             <h3 className="modal-title">{labels.deleteModalTitle}</h3>
             <p style={{ marginBottom: "20px", color: "#d32f2f", fontWeight: "500" }}>
-              {labels.deleteModalMessage} #{meetingToDelete.m_number || meetingToDelete.meeting_uuid?.slice(0, 8)}?
+              {labels.deleteModalMessage} #{meetingToDelete.m_number || meetingToDelete.m_number?.slice(0, 8)}?
             </p>
 
             <div className="modal-actions">
-              <button className="btn-secondary" onClick={closeDeleteConfirm} disabled={deletingId === meetingToDelete.meeting_uuid}>
+              <button className="btn-secondary" onClick={closeDeleteConfirm} disabled={deletingId === meetingToDelete.m_number}>
                 {labels.cancel}
               </button>
-              <button className="btn-danger" onClick={confirmDeleteMeeting} disabled={deletingId === meetingToDelete.meeting_uuid}>
-                {deletingId === meetingToDelete.meeting_uuid ? labels.deleting : labels.deleteMeeting}
+              <button className="btn-danger" onClick={confirmDeleteMeeting} disabled={deletingId === meetingToDelete.m_number}>
+                {deletingId === meetingToDelete.m_number ? labels.deleting : labels.deleteMeeting}
               </button>
             </div>
           </div>

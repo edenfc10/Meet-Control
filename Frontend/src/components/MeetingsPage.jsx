@@ -83,7 +83,8 @@ export default function MeetingsPage({
   const userRole = currentUser?.role?.toLowerCase() || "";
   const canCreateMeeting = userRole === "super_admin" && accessLevel !== "audio";
   const isAdmin = userRole === "admin" || userRole === "super_admin";
-  const canEditPassword = isAdmin || userRole === "agent";
+  const canEditPassword = isAdmin;
+  const canEditName = isAdmin && accessLevel !== "audio";
 
   const [showCreate, setShowCreate] = useState(false);
   const [mNumber, setMNumber] = useState("");
@@ -182,6 +183,10 @@ export default function MeetingsPage({
 
   const [editId, setEditId] = useState(null); // UUID של הפגישה שנערכת
   const [editPassword, setEditPassword] = useState("");
+  const [editName, setEditName] = useState("");
+  const [editNameId, setEditNameId] = useState(null);
+  const [editNameError, setEditNameError] = useState("");
+  const [savingName, setSavingName] = useState(false);
   const [editError, setEditError] = useState("");
   const [saving, setSaving] = useState(false);
   const [favoriteBusyId, setFavoriteBusyId] = useState(null);
@@ -225,6 +230,7 @@ export default function MeetingsPage({
       ? "מחיקת הוועידה נכשלה."
       : "Failed to delete meeting.",
     loadingMeetings: isHebrew ? "טוען ועידות..." : "Loading meetings...",
+    searchByAll: isHebrew ? "הכל" : "All",
     searchByNameOrNumber: isHebrew ? "שם או מספר" : "Name or Number",
     searchByGroup: isHebrew ? "שם מדור" : "Group Name",
     searchByNoGroup: isHebrew ? "ללא מדור" : "No group",
@@ -248,6 +254,7 @@ export default function MeetingsPage({
     saving: isHebrew ? "שומר..." : "Saving...",
     removeFavorite: isHebrew ? "הסר ממועדפים" : "Remove Favorite",
     addFavorite: isHebrew ? "הוסף למועדפים" : "Add Favorite",
+    editName: isHebrew ? "עריכת שם" : "Edit Name",
     editPassword: isHebrew ? "עריכת סיסמה" : "Edit Password",
     deleting: isHebrew ? "מוחק..." : "Deleting...",
     delete: isHebrew ? "מחק" : "Delete",
@@ -257,6 +264,8 @@ export default function MeetingsPage({
       : "Are you sure you want to delete meeting",
     deleteMeeting: isHebrew ? "מחק ועידה" : "Delete Meeting",
     newPasswordPlaceholder: isHebrew ? "סיסמה חדשה" : "New password",
+    newNamePlaceholder: isHebrew ? "שם חדש" : "New name",
+    updateNameError: isHebrew ? "עדכון השם נכשל." : "Failed to update name.",
     save: isHebrew ? "שמור" : "Save",
     assignGroup: isHebrew ? "שייך מדור" : "Assign Group",
     assignGroupTitle: isHebrew ? "שיוך מדור לוועידה" : "Assign Group to Meeting",
@@ -302,36 +311,31 @@ export default function MeetingsPage({
 
   // חיפוש
   const [search, setSearch] = useState("");
-  const [searchField, setSearchField] = useState("number");
+  const [searchField, setSearchField] = useState("all");
 
   const searchPlaceholder =
-    searchField === "number"
-      ? text.searchPlaceholderNumber
-      : searchField === "name"
-        ? text.searchPlaceholderName
-        : searchField === "name_or_number"
-          ? text.searchPlaceholderNameOrNumber
-          : text.searchPlaceholderGroup;
+    searchField === "name_or_number"
+      ? text.searchPlaceholderNameOrNumber
+      : searchField === "group"
+        ? text.searchPlaceholderGroup
+        : text.searchPlaceholderNameOrNumber;
 
   useEffect(() => { setPage(1); }, [search, searchField, sortField, sortDir]);
 
   const filtered = data.filter((m) => {
     if (searchField === "no_group") return !(m.groups?.length);
+    if (searchField === "all") return true;
     const query = search.toLowerCase();
-    if (!query) return true;
-    if (searchField === "number")
-      return (m.meetingId || "").toLowerCase().includes(query);
-    if (searchField === "name")
-      return (m.name || "").toLowerCase().startsWith(query);
+    if (!query) return false;
     if (searchField === "name_or_number") {
       const nameMatch = (m.name || "").toLowerCase().startsWith(query);
-      const numberMatch = (m.meetingId || "").toLowerCase().includes(query);
+      const numberMatch = (m.meetingId || "").toLowerCase().startsWith(query);
       return nameMatch || numberMatch;
     }
     if (searchField === "group") {
       return (m.groups || []).some((g) => {
         const groupName = (groupMap[String(g).toLowerCase()] || "").toLowerCase();
-        return groupName.includes(query);
+        return groupName.startsWith(query);
       });
     }
     return true;
@@ -433,6 +437,24 @@ export default function MeetingsPage({
     }
   };
 
+  const handleEditNameSave = async (meeting) => {
+    const newName = editName.trim();
+    if (!newName) return;
+    setSavingName(true);
+    setEditNameError("");
+    try {
+      await meetingAPI.updateMeetingName(meeting.dbId, newName, meeting.accessLevel);
+      setEditNameId(null);
+      setEditName("");
+      showToast(isHebrew ? "שם עודכן בהצלחה" : "Name updated successfully");
+      if (onRefresh) onRefresh();
+    } catch (err) {
+      setEditNameError(err.response?.data?.detail || text.updateNameError);
+    } finally {
+      setSavingName(false);
+    }
+  };
+
   const handleEditSave = async (meeting) => {
     setSaving(true);
     setEditError("");
@@ -472,6 +494,10 @@ export default function MeetingsPage({
       if (editId === meetingToDelete.dbId) {
         setEditId(null);
         setEditPassword("");
+      }
+      if (editNameId === meetingToDelete.dbId) {
+        setEditNameId(null);
+        setEditName("");
       }
       closeDeleteConfirm();
       if (onRefresh) onRefresh();
@@ -544,11 +570,12 @@ export default function MeetingsPage({
               value={searchField}
               onChange={(e) => { setSearchField(e.target.value); setSearch(""); }}
             >
+              <option value="all">{text.searchByAll}</option>
               <option value="name_or_number">{text.searchByNameOrNumber}</option>
               <option value="group">{text.searchByGroup}</option>
               <option value="no_group">{text.searchByNoGroup}</option>
             </select>
-            {searchField !== "no_group" && (
+            {searchField !== "no_group" && searchField !== "all" && (
               <input
                 className="meetings-search-input"
                 type="text"
@@ -627,6 +654,22 @@ export default function MeetingsPage({
                         </span>
                       </button>
                     )}
+                    {canEditName && (
+                      <button
+                        className="meeting-edit-btn"
+                        onClick={() => {
+                          setEditNameId(meeting.dbId);
+                          setEditName(meeting.name || "");
+                          setEditNameError("");
+                          setEditId(null);
+                        }}
+                      >
+                        <span className="action-btn-content">
+                          <span className="action-btn-icon"><EditIcon /></span>
+                          <span>{text.editName}</span>
+                        </span>
+                      </button>
+                    )}
                     {canEditPassword && (
                       <>
                         <button
@@ -635,6 +678,7 @@ export default function MeetingsPage({
                             setEditId(meeting.dbId);
                             setEditPassword(meeting.password || "");
                             setEditError("");
+                            setEditNameId(null);
                           }}
                         >
                           <span className="action-btn-content">
@@ -697,6 +741,33 @@ export default function MeetingsPage({
                       ) : null}
                     </span>
                   </div>
+                  {canEditName && editNameId === meeting.dbId && (
+                    <div className="meeting-edit-row">
+                      <input
+                        type="text"
+                        placeholder={text.newNamePlaceholder}
+                        value={editName}
+                        onChange={(e) => setEditName(e.target.value)}
+                        className="meetings-create-input"
+                      />
+                      <button
+                        className="meetings-create-submit"
+                        onClick={() => handleEditNameSave(meeting)}
+                        disabled={savingName}
+                      >
+                        {savingName ? text.saving : text.save}
+                      </button>
+                      <button
+                        className="meeting-cancel-btn"
+                        onClick={() => { setEditNameId(null); setEditName(""); }}
+                      >
+                        {text.cancel}
+                      </button>
+                      {editNameError && (
+                        <span className="meetings-error">{editNameError}</span>
+                      )}
+                    </div>
+                  )}
                   {canEditPassword && editId === meeting.dbId && (
                     <div className="meeting-edit-row">
                       <input

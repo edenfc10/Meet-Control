@@ -478,7 +478,8 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 | GET    | `/meetings/number/{number}`                   | admin, super_admin | Find meeting by number (alias for above)                                        |
 | POST   | `/meetings/create_meeting`                    | super_admin only   | Create a meeting in CMS (write-through)                                        |
 | DELETE | `/meetings/{meeting_number}`                  | admin, super_admin | Delete a meeting from CMS + clean DB overlay (write-through)                    |
-| PUT    | `/meetings/password/{meeting_number}`          | All roles          | Update meeting password in CMS (write-through)                                 |
+| PUT    | `/meetings/password/{meeting_number}`          | admin, super_admin | Update meeting password in CMS (write-through)                                 |
+| PUT    | `/meetings/name/{meeting_number}`             | admin, super_admin | Update meeting name in CMS — **not available for audio meetings**              |
 | GET    | `/meetings/group/{group_uuid}`                | admin, super_admin | Get meeting numbers for a group (from DB)                                      |
 | GET    | `/meetings/live-status`                       | admin, super_admin | Live CMS stats: active calls + participants per meeting type                   |
 | GET    | `/meetings/{meeting_number}/participants`     | All roles          | Get authorized users for this meeting — returns `S_ID` + `username` per participant (from DB via group membership) |
@@ -506,6 +507,14 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 ```json
 {
   "password": "new-password"
+}
+```
+
+**Update name request body:**
+
+```json
+{
+  "name": "New Meeting Name"
 }
 ```
 
@@ -597,7 +606,7 @@ User ——< favorite_meeting >————— Meeting (by meeting_number + acce
 | Path                   | Page                | Who can access                   | Features                                                                                            |
 | ---------------------- | ------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `/login`               | Login               | Everyone (unauthenticated)       | Basic authentication                                                                                |
-| `/dashboard`           | Dashboard           | admin, super_admin               | Live meeting stats (active calls + participants by type), group activity snapshot with accurate per-group meeting counts (filtered by user permissions), favorite meetings |
+| `/dashboard`           | Dashboard           | admin, super_admin               | Live meeting stats (active calls + participants by type), favorite meetings panel with full actions: edit name, edit password, delete, participants, assign group, remove favorite |
 | `/users`               | User management     | All roles                        | Create users (admin creates agents; super_admin creates admins+agents), edit user details, `can_audio`/`can_video` checkboxes for admin users, delete users, search & filter |
 | `/groups`              | Group management    | All roles                        | Create/edit/delete groups, manage members with access levels (audio/video/blast_dial), assign multiple meetings per group, agent one-group rule enforced |
 | `/audio-meetings`      | Audio meetings      | Agents with audio access, admins with `can_audio=true`    | Browse audio meetings, search by meeting number / group name / no-group filter, authorized participant count per meeting, assign multiple groups from card (admin+), pagination, participants modal (authorized + live tabs) |
@@ -625,7 +634,8 @@ Each meeting card on the Audio / Video / Blast-dial pages displays:
 - **Password** — shown if set
 - **Action buttons** (role-dependent):
   - ★ Favorite / Unfavorite
-  - ✏ Edit password (`agent`, `admin`, `super_admin`)
+  - ✏ Edit name (`admin`, `super_admin`) — **not available for audio meetings**
+  - ✏ Edit password (`admin`, `super_admin`)
   - 🗑 Delete (`admin`, `super_admin`)
   - 👥 View participants (all roles)
   - 📁 Assign group (`admin`, `super_admin`)
@@ -633,12 +643,13 @@ Each meeting card on the Audio / Video / Blast-dial pages displays:
 
 ### Search & Filter
 
-The search bar supports three modes via dropdown:
+The search bar supports four modes via dropdown:
 
 | Mode | Behaviour |
 |---|---|
-| Meeting Number | Free-text search by meeting number |
-| Group | Free-text search by resolved group name |
+| All | Shows all meetings immediately (no input required) |
+| Name or Number | Prefix (`startsWith`) search by meeting name or number — shows nothing until typing |
+| Group | Prefix search by resolved group name — shows nothing until typing |
 | No Group | Filter to show only unassigned meetings |
 
 ### Pagination
@@ -658,6 +669,7 @@ Opened via 📁 button. Allows:
 A brief overlay message appears at the bottom of the screen (3 seconds) after:
 - Group assigned / removed
 - Password updated
+- Name updated
 - Meeting added / removed from favorites
 
 ### Participant Count
@@ -758,14 +770,18 @@ cms = CMS(cms_type="video")   # connects to CMS_VIDEO_URL
 | Method | Description |
 |--------|-------------|
 | `create_cospace(name, uri, passcode)` | Create a new CoSpace (meeting room) |
-| `delete_cospace(cospace_id)` | Delete a CoSpace |
+| `delete_cospace(cospace_id)` | Delete a CoSpace by internal CMS ID |
+| `delete_cospace_by_call_id(call_id)` | Delete a CoSpace by Call ID |
 | `list_cospaces()` | List all CoSpaces on the server |
 | `get_cospace_details(cospace_id)` | Get details of a specific CoSpace |
-| `update_cospace_passcode(cospace_id, passcode)` | Update CoSpace passcode |
+| `get_cospace_by_call_id(call_id)` | Find a CoSpace by its Call ID |
+| `update_cospace_passcode(cospace_id, passcode)` | Update CoSpace passcode by internal ID |
+| `update_cospace_passcode_by_call_id(call_id, passcode)` | Update CoSpace passcode by Call ID |
+| `update_cospace_name(cospace_id, name)` | Update CoSpace name by internal ID |
+| `update_cospace_name_by_call_id(call_id, name)` | Update CoSpace name by Call ID |
 | `get_active_calls()` | Get all active calls currently running |
 | `get_call_details(call_id)` | Get details of a specific call |
 | `get_call_participants(call_id)` | Get participants in a call |
-| `get_participants_by_meeting_number(m_number)` | Get participants by meeting number |
 | `mute_participant_by_leg_id(call_id, leg_id, mute)` | Mute/unmute a participant |
 | `kick_participant_by_leg_id(call_id, leg_id)` | Remove a participant from a call |
 | `test_connection()` | Returns `True` if CMS is reachable |
@@ -868,6 +884,45 @@ This change was made because the CMS API was not accepting XML payloads correctl
 ---
 
 ## Recent Changes
+
+### Meeting Identifier: URI → Call ID
+
+- The system now uses **Call ID** (`callId`) as the primary meeting identifier instead of URI user part
+- `MeetingService._to_output` — `m_number` now read from `cs.get("callId")` instead of `cs.get("uri")`
+- `get_all_meetings` — filters CoSpaces by `callId` field
+- `_find_cospace`, `_find_cospace_by_type` — look up CoSpaces via `get_cospace_by_call_id`
+- `cms.py` — added new `*_by_call_id` methods: `get_cospace_by_call_id`, `delete_cospace_by_call_id`, `update_cospace_passcode_by_call_id`, `update_cospace_name_by_call_id`
+- Old `*_by_uri` methods retained as legacy (used internally only)
+
+### Edit Meeting Name Feature
+
+- New `PUT /meetings/name/{meeting_number}` endpoint — updates meeting name directly on CMS
+- New `MeetingNameUpdate` Pydantic schema (`Backend/app/schema/meeting.py`)
+- `MeetingService.update_name_by_number` — access-controlled name update with CMS sync
+- `cms.update_cospace_name` / `update_cospace_name_by_call_id` — CMS API integration
+- **Frontend — Meetings pages:** "Edit Name" button added to each meeting card (admin, super_admin only)
+  - **Audio meetings: edit name disabled** (not applicable for audio CoSpaces)
+  - Inline input row with save/cancel and error display
+  - Clears password edit state when opened (and vice versa)
+- **Frontend — Dashboard favorites:** same Edit Name capability added to the favorites panel
+- `api.js` — added `meetingAPI.updateMeetingName(meetingNumber, newName, accessLevel)`
+
+### Meeting Search Enhancements
+
+- Added **"All" option** to search dropdown — shows all meetings immediately with no input required
+- Other search modes (Name/Number, Group) show **no results until typing** begins
+- All search filters changed from `includes` to **`startsWith`** (prefix matching only)
+- Search input hidden when "All" or "No Group" is selected
+
+### Dashboard Favorites — Full Action Parity
+
+- Favorites panel now supports all the same actions as the Meetings pages:
+  - Edit Name (admin+, video/blast_dial only)
+  - Edit Password (admin+)
+  - Delete meeting
+  - View participants (authorized + live tabs)
+  - Assign / remove group
+- Fixed: all favorites API calls now use `m_number` (previously erroneously used `meeting_uuid` which was `undefined`)
 
 ### Groups Page — Meeting Search & Filter Enhancements
 

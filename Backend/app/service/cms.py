@@ -146,9 +146,46 @@ class CMS:
             return {"status": "updated"}
         else:
             raise Exception(f"Failed to update CoSpace passcode: {response.status_code} - {response.text}")
+
+    def update_cospace_name(self, cospace_id: str, name: str) -> Dict:
+        """Update CoSpace name"""
+        url = f"{self.base_url}/coSpaces/{cospace_id}"
+        response = self.session.put(url, data={"name": name}, timeout=self.timeout)
+        if response.status_code == 200:
+            return {"status": "updated"}
+        else:
+            raise Exception(f"Failed to update CoSpace name: {response.status_code} - {response.text}")
+
+        
+    def update_cospace_name_by_call_id(self, call_id: str, name: str) -> Optional[Dict]:
+        """Update CoSpace name by Call ID"""
+        cospace = self.get_cospace_by_call_id(call_id)
+        if not cospace:
+            raise Exception(f"CoSpace with callId '{call_id}' not found")
+        cospace_id = cospace.get("id") or cospace.get("@id")
+        if not cospace_id:
+            raise Exception(f"CoSpace with callId '{call_id}' has no id")
+        return self.update_cospace_name(cospace_id, name)
     
+    def get_cospace_by_call_id(self, call_id: str) -> Optional[Dict]:
+        """Find a CoSpace by its Call ID (meeting number)"""
+        cospaces = self.list_cospaces()
+        for cs in cospaces:
+            cs_id = cs.get("id") or cs.get("@id")
+            if not cs_id:
+                continue
+            try:
+                details = self.get_cospace_details(cs_id)
+                if str(details.get("callId", "")).strip() == str(call_id).strip():
+                    if "id" not in details:
+                        details["id"] = cs_id
+                    return details
+            except Exception:
+                continue
+        return None
+
     def get_cospace_by_uri(self, uri: str) -> Optional[Dict]:
-        """Find a CoSpace by its URI (meeting number)"""
+        """Find a CoSpace by its URI (legacy, kept for passcode update compatibility)"""
         cospaces = self.list_cospaces()
         for cs in cospaces:
             cs_id = cs.get("id") or cs.get("@id")
@@ -164,6 +201,16 @@ class CMS:
                 continue
         return None
     
+    def delete_cospace_by_call_id(self, call_id: str) -> bool:
+        """Delete a CoSpace by its Call ID. Returns False if not found (already gone)."""
+        cospace = self.get_cospace_by_call_id(call_id)
+        if not cospace:
+            return False
+        cospace_id = cospace.get("id") or cospace.get("@id")
+        if not cospace_id:
+            return False
+        return self.delete_cospace(cospace_id)
+
     def delete_cospace_by_uri(self, uri: str) -> bool:
         """Delete a CoSpace by its URI. Returns False if not found (already gone)."""
         cospace = self.get_cospace_by_uri(uri)
@@ -174,8 +221,18 @@ class CMS:
             return False
         return self.delete_cospace(cospace_id)
     
+    def update_cospace_passcode_by_call_id(self, call_id: str, passcode: str) -> Dict:
+        """Update CoSpace passcode by its Call ID"""
+        cospace = self.get_cospace_by_call_id(call_id)
+        if not cospace:
+            raise Exception(f"CoSpace with callId '{call_id}' not found")
+        cospace_id = cospace.get("id") or cospace.get("@id")
+        if not cospace_id:
+            raise Exception(f"CoSpace with callId '{call_id}' has no id")
+        return self.update_cospace_passcode(cospace_id, passcode)
+
     def update_cospace_passcode_by_uri(self, uri: str, passcode: str) -> Dict:
-        """Update CoSpace passcode by its URI"""
+        """Update CoSpace passcode by its URI (legacy)"""
         cospace = self.get_cospace_by_uri(uri)
         if not cospace:
             raise Exception(f"CoSpace with uri '{uri}' not found")

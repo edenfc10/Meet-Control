@@ -46,6 +46,12 @@ class MeetingPasswordUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 
+class MeetingNameUpdate(BaseModel):
+    name: str
+
+    model_config = ConfigDict(extra="forbid", from_attributes=True)
+
+
 # --- MeetingOutput ---
 # הפגישה חיה ב-CMS. הזהות בכל המערכת היא m_number (ה-URI ב-CMS).
 class MeetingOutput(BaseModel):
