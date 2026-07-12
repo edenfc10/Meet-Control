@@ -79,7 +79,9 @@ export const meetingAPI = {
   getMeetingByNumber: (number) => api.get(`/meetings/number/${number}`),
   createMeeting: (meetingData) =>
     api.post("/meetings/create_meeting", meetingData),
-  deleteMeeting: (meetingUuid) => api.delete(`/meetings/${meetingUuid}`),
+  deleteMeeting: (meetingUuid, accessLevel) => api.delete(`/meetings/${meetingUuid}`, {
+      params: accessLevel ? { access_level: accessLevel } : {},
+    }),
   updateMeeting: (meetingUuid, meetingData) =>
     api.put(`/meetings/${meetingUuid}`, meetingData),
   updateMeetingByNumber: (number, meetingData) =>

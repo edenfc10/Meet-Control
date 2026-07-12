@@ -490,7 +490,7 @@ export default function MeetingsPage({
     setDeleteError("");
     try {
       // הבאקנד מוחק גם מה-CMS (write-through) — קריאה אחת מוחקת משני המקומות
-      await meetingAPI.deleteMeeting(meetingToDelete.dbId);
+      await meetingAPI.deleteMeeting(meetingToDelete.dbId, meetingToDelete.accessLevel);
       if (editId === meetingToDelete.dbId) {
         setEditId(null);
         setEditPassword("");

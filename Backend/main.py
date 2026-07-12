@@ -135,14 +135,19 @@ async def request_audit_log(request: Request, call_next):
     return response
 
 # רשימת הכתובות שמותר להן לגשת לשרת (CORS whitelist)
-origins = [
-    "http://localhost:5173",
-    "http://localhost:5174",
-    "http://127.0.0.1:5173",
-    "http://127.0.0.1:5174",
-    "http://192.168.1.30:5173",
-    "http://192.168.1.30",
-]
+_cors_env = os.getenv("CORS_ORIGINS", "")
+origins = (
+    [o.strip() for o in _cors_env.split(",") if o.strip()]
+    if _cors_env
+    else [
+        "http://localhost:5173",
+        "http://localhost:5174",
+        "http://127.0.0.1:5173",
+        "http://127.0.0.1:5174",
+        "http://192.168.1.30:5173",
+        "http://192.168.1.30",
+    ]
+)
 
 # הגדרת CORS - מאפשר ל-Frontend לתקשר עם ה-API
 app.add_middleware(

@@ -201,7 +201,7 @@ export default function Dashboard({ language = "en" }) {
     setDeletingId(meetingToDelete.m_number);
     setDeleteError("");
     try {
-      await meetingAPI.deleteMeeting(meetingToDelete.m_number);
+      await meetingAPI.deleteMeeting(meetingToDelete.m_number, meetingToDelete.accessLevel);
       if (editId === meetingToDelete.m_number) {
         setEditId(null);
         setEditPassword("");
@@ -354,8 +354,16 @@ export default function Dashboard({ language = "en" }) {
       setLiveError("");
       setLiveWarning("");
 
-      const dbResponse = await meetingAPI.getAllMeetings();
-      const meetings = dbResponse.data || [];
+      const [audioRes, videoRes, blastRes] = await Promise.allSettled([
+        meetingAPI.getAllMeetings("audio"),
+        meetingAPI.getAllMeetings("video"),
+        meetingAPI.getAllMeetings("blast_dial"),
+      ]);
+      const meetings = [
+        ...(audioRes.status === "fulfilled" ? audioRes.value.data || [] : []),
+        ...(videoRes.status === "fulfilled" ? videoRes.value.data || [] : []),
+        ...(blastRes.status === "fulfilled" ? blastRes.value.data || [] : []),
+      ];
       const dbStats = {
         audio: { meetings: 0, participants: 0 },
         video: { meetings: 0, participants: 0 },
@@ -416,13 +424,12 @@ export default function Dashboard({ language = "en" }) {
   }, []);
 
   useEffect(() => {
-    loadFavorites();
-  }, []);
-
-  useEffect(() => {
-    loadLiveStats();
-    const interval = setInterval(loadLiveStats, 30000);
-    return () => clearInterval(interval);
+    const refresh = () => { loadLiveStats(); loadFavorites(); };
+    refresh();
+    const interval = setInterval(refresh, 30000);
+    const onVisible = () => { if (document.visibilityState === "visible") loadFavorites(); };
+    document.addEventListener("visibilitychange", onVisible);
+    return () => { clearInterval(interval); document.removeEventListener("visibilitychange", onVisible); };
   }, [loadLiveStats]);
 
   const labels = isHebrew

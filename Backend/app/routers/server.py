@@ -8,6 +8,7 @@ from app.models.meeting import AccessLevel
 from app.schema.server import ServerInCreate, ServerInUpdate, ServerOutput
 from app.security.TokenValidator import TokenValidator
 from app.service.serverService import ServerService
+from app.service.cms import CMSFactory
 from logger import LoggerManager
 
 serverRouter = APIRouter()
@@ -54,7 +55,9 @@ def create_server(
             user.role.value,
             server_data.accessLevel,
         )
-        return ServerService(session=session).create_server(server_data=server_data)
+        result = ServerService(session=session).create_server(server_data=server_data)
+        CMSFactory.invalidate(server_data.accessLevel)
+        return result
     except Exception as error:
         LoggerManager.get_logger().exception(
             "Failed to create server for user %s:%s role=%s. Error: %s",
@@ -81,7 +84,9 @@ def update_server(
             user.role.value,
             server_uuid,
         )
-        return ServerService(session=session).update_server(server_uuid=server_uuid, server_data=server_data)
+        result = ServerService(session=session).update_server(server_uuid=server_uuid, server_data=server_data)
+        CMSFactory.invalidate()
+        return result
     except HTTPException:
         raise
     except Exception as error:
@@ -106,6 +111,7 @@ def delete_server(
             server_uuid,
         )
         ServerService(session=session).delete_server(server_uuid=server_uuid)
+        CMSFactory.invalidate()
         return {"detail": "Server deleted successfully"}
     except HTTPException:
         raise

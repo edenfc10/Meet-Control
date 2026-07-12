@@ -10,7 +10,7 @@
 ## Table of Contents
 
 1. [Tech Stack](#tech-stack)
-2. [Architecture](#architecture)
+2. [Architecture](#architecture)po
 3. [Project Structure](#project-structure)
 4. [Getting Started](#getting-started)
 5. [Environment Variables](#environment-variables)
@@ -1050,6 +1050,57 @@ If you have existing data in the old architecture:
 5. **Update favorites** to use meeting numbers instead of UUIDs
 
 The new architecture is simpler and more aligned with the actual data source (CMS), but requires careful migration of existing data.
+
+---
+
+## Recent Changes (July 12, 2026)
+
+### CMSFactory — Connection Caching & Fault Tolerance
+
+`Backend/app/service/cms.py` — `CMSFactory` was refactored to improve performance and resilience:
+
+- **Active-server cache (`CACHE_TTL = 30s`):** Once a CMS server is verified reachable, it is reused for 30 seconds without re-checking. Eliminates a 3-second `check_connection` call on every API request.
+- **Dead-server cooldown (`DEAD_TTL = 120s`):** A server that fails `check_connection` is marked "dead" and skipped for 2 minutes. After the cooldown, it is retried automatically — no restart required.
+- **Automatic failover:** If the primary server (priority=1) is unreachable, the factory moves to the next server in priority order (priority=2, etc.) within the same CMS type.
+- **Cache invalidation:** `CMSFactory.invalidate()` is called automatically from `server.py` whenever a server is created, updated, or deleted — ensuring the cache never holds a stale server reference.
+
+### CMS Server Prioritization per Meeting Type
+
+`Backend/app/service/meetingService.py` — `_find_cospace` now accepts an `access_level` hint:
+
+- When `hint="video"` is passed, the factory tries the video CMS first instead of iterating all types
+- `delete_meeting`, `update_name_by_number`, `update_password_by_number` all propagate the hint
+- The `DELETE /meetings/{meeting_number}` endpoint accepts an optional `?access_level=` query param and passes it as the hint
+- Frontend (`MeetingsPage.jsx`, `Dashboard.jsx`) sends `accessLevel` in all delete calls
+
+### Favorites — Bug Fixes
+
+- **`favoriteMeetingService._to_output`:** changed from `get_cospace_by_uri(number)` to `get_cospace_by_call_id(number)` — favorites were silently dropped because `meeting_number` stores the `callId`, not the URI
+- **Dashboard auto-refresh:** favorites panel now reloads together with live stats (every 30 seconds) and also on `visibilitychange` (when user returns to the Dashboard tab from another page)
+
+### CMS Create CoSpace — `callId` Field Added
+
+`Backend/app/service/cms.py` — `create_cospace` now sends `callId=uri` in the form payload alongside `uri`. Meetings created without a `callId` were invisible in all meeting list views because `get_all_meetings` filters by `callId`.
+
+### Route Conflict Fix
+
+`Backend/app/routers/user.py` — `/uuid/{uuid}` route moved before `/{s_id}` to prevent FastAPI from matching UUID paths as s_id values.
+
+### Nginx API Proxy
+
+`Frontend/nginx.conf` — added `proxy_pass` blocks for all API route prefixes (`/auth`, `/users`, `/groups`, `/meetings`, `/protected`, `/favorites`, `/servers`, `/logs`, `/reports`). Without this, all API calls returned 404 in production.
+
+### CORS — Dynamic Origins from Environment Variable
+
+`Backend/main.py` — CORS `allow_origins` now reads from the `CORS_ORIGINS` environment variable (comma-separated, single line). Falls back to a hardcoded dev list if the variable is not set.
+
+### User Service — 404 Instead of 500
+
+`Backend/app/service/userService.py` — `get_user_by_s_id` and `get_user_by_uuid` now raise `HTTPException(404)` when a user is not found, instead of `400`. This prevents the router's generic exception handler from returning a misleading `500`.
+
+### Dashboard — Parallel Per-Type Requests
+
+`Frontend/src/pages/Dashboard.jsx` — `loadLiveStats` now fires three parallel `getAllMeetings` calls (audio, video, blast_dial) using `Promise.allSettled` instead of a single unfiltered call. An unreachable CMS type no longer blocks the entire dashboard load.
 
 ---
 

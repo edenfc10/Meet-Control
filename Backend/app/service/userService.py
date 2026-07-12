@@ -96,13 +96,13 @@ class UserService:
         user = self.__userRepository.get_user_by_s_id(s_id=s_id)
         if user:
             return user
-        raise HTTPException(status_code=400, detail="User is not available")
+        raise HTTPException(status_code=404, detail="User is not available")
     
     def get_user_by_uuid(self, uuid: str) -> User:
         user = self.__userRepository.get_user_by_uuid(uuid=uuid)
         if user:
             return user
-        raise HTTPException(status_code=400, detail="User is not available")
+        raise HTTPException(status_code=404, detail="User is not available")
     
     def get_user_by_s_id_for_requester(
         self, s_id: str, requester_role: str, requester_uuid: str

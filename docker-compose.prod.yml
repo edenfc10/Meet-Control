@@ -38,13 +38,20 @@ services:
       POSTGRES_DB: ${POSTGRES_DB}
       POSTGRES_PORT: 5432
       TZ: Asia/Jerusalem
+      CMS_AUDIO_URL: ${CMS_AUDIO_URL}
+      CMS_VIDEO_URL: ${CMS_VIDEO_URL}
+      CMS_USERNAME: ${CMS_USERNAME}
+      CMS_PASSWORD: ${CMS_PASSWORD}
+      CMS_TIMEOUT: ${CMS_TIMEOUT:-30}
+      CMS_VERIFY_SSL: ${CMS_VERIFY_SSL:-false}
+      CORS_ORIGINS: ${CORS_ORIGINS}
 
   frontend:
     build:
       context: ./Frontend
       dockerfile: Dockerfile.prod
       args:
-        VITE_API_URL: http://192.168.1.30:8000
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
         VITE_CMS_MODE: mock
         VITE_CMS_URL: ""
         VITE_CMS_API_KEY: ""

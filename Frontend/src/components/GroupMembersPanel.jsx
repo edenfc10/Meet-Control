@@ -74,7 +74,6 @@ export default function GroupMembersPanel({
   const [addAccessLevels, setAddAccessLevels] = useState([]);
   const [addMemberLoading, setAddMemberLoading] = useState(false);
   const [searchUserText, setSearchUserText] = useState("");
-  const [userRoleFilter, setUserRoleFilter] = useState("all");
   const [showRemoveMemberConfirm, setShowRemoveMemberConfirm] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState(null);
   const [removeMemberLoadingId, setRemoveMemberLoadingId] = useState("");
@@ -83,7 +82,6 @@ export default function GroupMembersPanel({
     setAddUserId("");
     setAddAccessLevels([]);
     setSearchUserText("");
-    setUserRoleFilter("all");
   }, [selectedGroup?.UUID]);
 
   useEffect(() => {
@@ -103,22 +101,20 @@ export default function GroupMembersPanel({
 
   const addableUsers = useMemo(() => {
     return (allUsers || []).filter((u) => {
-      const uLevel = ROLE_HIERARCHY[u.role] || 0;
-      if (u.UUID === myUUID || uLevel >= myLevel) return false;
+      if (u.role !== "agent") return false;
+      if (u.UUID === myUUID) return false;
       const existingLevels = getUserAccessLevelsInSelectedGroup(u.UUID);
       return existingLevels.length < availableAccessLevels.length;
     });
-  }, [allUsers, myUUID, myLevel, selectedGroup?.member_access_levels]);
+  }, [allUsers, myUUID, selectedGroup?.member_access_levels]);
 
   const filteredAddableUsers = useMemo(() => {
-    let result = addableUsers;
-    if (userRoleFilter !== "all") result = result.filter((u) => u.role === userRoleFilter);
     const q = searchUserText.trim().toLowerCase();
-    if (!q) return result;
-    return result.filter(
+    if (!q) return addableUsers;
+    return addableUsers.filter(
       (u) => (u.username || "").toLowerCase().includes(q) || (u.s_id || "").toLowerCase().includes(q)
     );
-  }, [addableUsers, searchUserText, userRoleFilter]);
+  }, [addableUsers, searchUserText]);
 
   const existingAccessLevelsForSelectedUser = useMemo(() => {
     if (!addUserId) return [];
@@ -297,18 +293,6 @@ export default function GroupMembersPanel({
           ) : (
             <div className="groups-add-row groups-add-member-row">
               <div className="groups-search-select" role="group">
-                <div style={{ display: "flex", gap: 8, marginBottom: 6 }}>
-                  <select
-                    className="meetings-filter-select"
-                    value={userRoleFilter}
-                    onChange={(e) => { setUserRoleFilter(e.target.value); setAddUserId(""); }}
-                    style={{ width: "100%" }}
-                  >
-                    <option value="all">{isHebrew ? "כל התפקידים" : "All roles"}</option>
-                    <option value="agent">{isHebrew ? "סוכן" : "Agent"}</option>
-                    <option value="admin">{isHebrew ? "אדמין" : "Admin"}</option>
-                  </select>
-                </div>
                 <input
                   className="groups-search-select-input"
                   type="text"

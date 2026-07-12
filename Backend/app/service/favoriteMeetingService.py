@@ -16,7 +16,7 @@ class FavoriteMeetingService:
         number = favorite.meeting_number
         cms_type = favorite.access_level
         try:
-            cs = CMSFactory.get(self.session, cms_type).get_cospace_by_uri(number)
+            cs = CMSFactory.get(self.session, cms_type).get_cospace_by_call_id(number)
         except Exception:
             cs = None
         if not cs:

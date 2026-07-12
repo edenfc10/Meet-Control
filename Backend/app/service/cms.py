@@ -48,7 +48,7 @@ class CMS:
         logger.info(f"CMS Client initialized for {self.base_url}")
     
     @staticmethod
-    def check_connection(ip_address: str, port: int, username: str, password: str, timeout: int = 10) -> bool:
+    def check_connection(ip_address: str, port: int, username: str, password: str, timeout: int = 3) -> bool:
         """בודק חיבור ל-CMS לפני שמירה ב-DB. מחזיר True אם השרת מגיב תקין."""
         import urllib3
         urllib3.disable_warnings()
@@ -123,6 +123,7 @@ class CMS:
         form_data = {"name": name}
         if uri:
             form_data["uri"] = uri
+            form_data["callId"] = uri
         if passcode:
             form_data["passcode"] = passcode
 
@@ -453,17 +454,47 @@ class CMSFactory:
     Factory שמחזיר CMS מחובר לפי access_level.
     מנסה שרתים מה-DB לפי priority (1=ראשי, 2=גיבוי...).
     אם אף שרת DB לא זמין — נופל חזרה ל-env vars.
+    Cache פנימי: שומר את השרת שעבד למשך CACHE_TTL שניות כדי לא לבדוק כל בקשה.
     """
 
-    @staticmethod
-    def get(session, cms_type: str) -> 'CMS':
+    _cache: dict = {}        # { cms_type: (CMS instance, expiry_timestamp) }
+    _dead: dict = {}         # { "ip:port" : expiry_timestamp } — שרתים שנפלו, לא נבדקים עד תפוגה
+    CACHE_TTL: int = 30      # שניות עד בדיקת חיבור מחדש לשרת זמין
+    DEAD_TTL: int = 120      # שניות שבהן שרת שנפל לא נבדק (2 דקות)
+
+    @classmethod
+    def _get_cached(cls, cms_type: str):
+        import time
+        entry = cls._cache.get(cms_type)
+        if entry and time.time() < entry[1]:
+            return entry[0]
+        return None
+
+    @classmethod
+    def _set_cached(cls, cms_type: str, cms_instance: 'CMS'):
+        import time
+        cls._cache[cms_type] = (cms_instance, time.time() + cls.CACHE_TTL)
+
+    @classmethod
+    def invalidate(cls, cms_type: str = None):
+        """מחיקת cache — נקרא אם שרת נמחק/מתווסף"""
+        if cms_type:
+            cls._cache.pop(cms_type, None)
+        else:
+            cls._cache.clear()
+
+    @classmethod
+    def get(cls, session, cms_type: str) -> 'CMS':
         """
         מחזיר CMS מחובר עבור cms_type ("audio"/"video").
-        מנסה שרתים מה-DB לפי priority עולה.
-        זורק HTTPException 503 אם אף שרת לא זמין.
+        משתמש ב-cache למשך CACHE_TTL שניות לפני בדיקת חיבור מחדש.
         """
         from app.models.server import Server
         from fastapi import HTTPException
+
+        cached = cls._get_cached(cms_type)
+        if cached:
+            return cached
 
         servers = (
             session.query(Server)
@@ -473,7 +504,13 @@ class CMSFactory:
             .all()
         )
 
+        import time
         for server in servers:
+            server_key = f"{server.ip_address}:{server.port}"
+            # דלג על שרת שנמצא ב-cooldown (נפל לאחרונה)
+            if server_key in cls._dead and time.time() < cls._dead[server_key]:
+                logger.debug("CMSFactory: skipping dead server %s (cooldown)", server_key)
+                continue
             reachable = CMS.check_connection(
                 server.ip_address, server.port, server.username, server.password
             )
@@ -483,17 +520,22 @@ class CMSFactory:
                     server.server_name, server.ip_address, server.port,
                     server.priority, cms_type,
                 )
+                cls._dead.pop(server_key, None)  # הסר מרשימת המתים אם חזר
                 server.is_active = True
                 try:
                     session.commit()
                 except Exception:
                     session.rollback()
-                return CMS(
+                cms_instance = CMS(
                     base_url=f"https://{server.ip_address}:{server.port}",
                     username=server.username,
                     password=server.password,
                 )
+                cls._set_cached(cms_type, cms_instance)
+                return cms_instance
             else:
+                logger.warning("CMSFactory: server %s unreachable, cooldown %ds", server_key, cls.DEAD_TTL)
+                cls._dead[server_key] = time.time() + cls.DEAD_TTL  # סמן כמת ל-5 דקות
                 if server.is_active:
                     server.is_active = False
                     try:
@@ -509,4 +551,6 @@ class CMSFactory:
             )
 
         logger.warning("CMSFactory: no DB servers for %s, falling back to env vars", cms_type)
-        return CMS(cms_type=cms_type)
+        cms_instance = CMS(cms_type=cms_type)
+        cls._set_cached(cms_type, cms_instance)
+        return cms_instance

@@ -133,9 +133,13 @@ class MeetingService:
                 outputs.append(self._to_output(cs, t))
         return outputs
 
-    def _find_cospace(self, number: str):
-        """מחזיר (cospace, cms_type) עבור מספר פגישה (callId), או (None, None)."""
-        for t in CMS_TYPES:
+    def _find_cospace(self, number: str, hint: str = None):
+        """מחזיר (cospace, cms_type) עבור מספר פגישה (callId), או (None, None).
+        אם hint נתון (audio/video) — מנסה אותו קודם כדי לחסוך זמן."""
+        ordered = list(CMS_TYPES)
+        if hint and hint.lower() in CMS_TYPES:
+            ordered = [hint.lower()] + [t for t in ordered if t != hint.lower()]
+        for t in ordered:
             try:
                 cs = CMSFactory.get(self.session, t).get_cospace_by_call_id(str(number))
             except Exception:
@@ -225,8 +229,8 @@ class MeetingService:
         }
         return self._to_output(cs, av)
 
-    def delete_meeting(self, number, user_uuid: str = None, user_role: str = None) -> bool:
-        cs, t = self._find_cospace(number)
+    def delete_meeting(self, number, user_uuid: str = None, user_role: str = None, access_level_hint: str = None) -> bool:
+        cs, t = self._find_cospace(number, hint=access_level_hint)
         if cs and user_uuid and user_role:
             self._assert_admin_access(user_role, user_uuid, t)
         if cs:
@@ -263,7 +267,7 @@ class MeetingService:
             CMSFactory.get(self.session, t).update_cospace_name_by_call_id(str(number), name)
         except Exception as error:
             raise HTTPException(status_code=502, detail=f"CMS error: {str(error)}")
-        cs, _ = self._find_cospace(number)
+        cs, _ = self._find_cospace(number, hint=t)
         return self._to_output(cs or {"callId": str(number)}, t)
 
     def update_password_by_number(self, number, password: Optional[str], user_uuid: str, user_role: str, access_level_hint: str = None) -> MeetingOutput:
@@ -283,7 +287,7 @@ class MeetingService:
             CMSFactory.get(self.session, t).update_cospace_passcode_by_call_id(str(number), password or "")
         except Exception as error:
             raise HTTPException(status_code=502, detail=f"CMS error: {str(error)}")
-        cs, _ = self._find_cospace(number)
+        cs, _ = self._find_cospace(number, hint=t)
         return self._to_output(cs or {"callId": str(number)}, t)
 
     # ------------------------------------------------------------------

@@ -121,11 +121,11 @@ def create_meeting_by_access_level(meeting_data: MeetingInCreate, session: Sessi
 
 # --- DELETE /meetings/{meeting_number} ---
 @meetingRouter.delete("/{meeting_number}", status_code=200)
-def delete_meeting(meeting_number: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+def delete_meeting(meeting_number: str, access_level: str = None, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     user_role = str(getattr(user.role, "value", user.role)).lower().strip()
     try:
         LoggerManager.get_logger().info("User %s deleting meeting number=%s", user.s_id, meeting_number)
-        MeetingService(session=session).delete_meeting(number=meeting_number, user_uuid=str(user.UUID), user_role=user_role)
+        MeetingService(session=session).delete_meeting(number=meeting_number, user_uuid=str(user.UUID), user_role=user_role, access_level_hint=access_level)
         return {"detail": "Meeting deleted successfully"}
     except HTTPException:
         raise

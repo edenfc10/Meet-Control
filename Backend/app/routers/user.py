@@ -44,6 +44,31 @@ def get_all_users(session: Session = Depends(get_db), user=Depends(all_members_v
         raise HTTPException(status_code=500, detail=str(error))
 
 
+@userRouter.get("/uuid/{uuid}", status_code=200, response_model=UserOutput)
+def get_user_by_uuid(uuid: str, session: Session = Depends(get_db), user=Depends(validator)):
+    try:
+        LoggerManager.get_logger().info(
+            "User %s:%s with role %s requested user by uuid=%s",
+            user.s_id,
+            user.UUID,
+            user.role.value,
+            uuid,
+        )
+        requested_user = UserService(session=session).get_user_by_uuid(
+            uuid=uuid,
+        )
+        return UserOutput.model_validate(requested_user, from_attributes=True)
+    except Exception as error:
+        LoggerManager.get_logger().exception(
+            "Failed to fetch user uuid=%s for requester %s:%s role=%s",
+            uuid,
+            user.s_id,
+            user.UUID,
+            user.role.value,
+        )
+        raise HTTPException(status_code=500, detail=str(error))
+
+
 @userRouter.get("/{s_id}", status_code=200, response_model=UserOutput)
 def get_user_by_s_id(s_id: str, session: Session = Depends(get_db), user=Depends(validator)):
     try:
@@ -64,31 +89,6 @@ def get_user_by_s_id(s_id: str, session: Session = Depends(get_db), user=Depends
         LoggerManager.get_logger().exception(
             "Failed to fetch user s_id=%s for requester %s:%s role=%s",
             s_id,
-            user.s_id,
-            user.UUID,
-            user.role.value,
-        )
-        raise HTTPException(status_code=500, detail=str(error))
-    
-
-@userRouter.get("/uuid/{uuid}", status_code=200, response_model=UserOutput)
-def get_user_by_uuid(uuid: str, session: Session = Depends(get_db), user=Depends(validator)):
-    try:
-        LoggerManager.get_logger().info(
-            "User %s:%s with role %s requested user by uuid=%s",
-            user.s_id,
-            user.UUID,
-            user.role.value,
-            uuid,
-        )
-        requested_user = UserService(session=session).get_user_by_uuid(
-            uuid=uuid,
-        )
-        return UserOutput.model_validate(requested_user, from_attributes=True)
-    except Exception as error:
-        LoggerManager.get_logger().exception(
-            "Failed to fetch user uuid=%s for requester %s:%s role=%s",
-            uuid,
             user.s_id,
             user.UUID,
             user.role.value,
