@@ -83,6 +83,7 @@ export default function MeetingsPage({
   const userRole = currentUser?.role?.toLowerCase() || "";
   const canCreateMeeting = userRole === "super_admin" && accessLevel !== "audio";
   const isAdmin = userRole === "admin" || userRole === "super_admin";
+  const isSuperAdmin = userRole === "super_admin";
   const canEditPassword = isAdmin;
   const canEditName = isAdmin && accessLevel !== "audio";
 
@@ -688,7 +689,7 @@ export default function MeetingsPage({
                             <span>{text.editPassword}</span>
                           </span>
                         </button>
-                        {isAdmin && (
+                        {isSuperAdmin && (
                           <button
                             className="meeting-delete-btn"
                             onClick={() => handleDelete(meeting)}

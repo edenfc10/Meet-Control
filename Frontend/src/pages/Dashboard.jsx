@@ -57,6 +57,7 @@ export default function Dashboard({ language = "en" }) {
   const { currentUser } = useAuth();
   const userRole = currentUser?.role?.toLowerCase() || "";
   const isAdmin = userRole === "admin" || userRole === "super_admin";
+  const isSuperAdmin = userRole === "super_admin";
   const isStaff = isAdmin || userRole === "agent";
   const canEditPassword = isAdmin;
   const canEditName = isAdmin;
@@ -733,7 +734,7 @@ export default function Dashboard({ language = "en" }) {
                                 </span>
                               </button>
                             )}
-                            {isAdmin && (
+                            {isSuperAdmin && (
                               <button
                                 className="meeting-delete-btn"
                                 onClick={() => handleDelete(meeting)}

@@ -1104,6 +1104,17 @@ The new architecture is simpler and more aligned with the actual data source (CM
 
 ---
 
+## Recent Changes (July 13, 2026)
+
+### Delete Meeting — Restricted to super_admin Only
+
+- **Frontend — `MeetingsPage.jsx`:** The delete meeting button is now rendered only when `isSuperAdmin === true`. Previously it was shown to all `admin` and `super_admin` users.
+- **Frontend — `Dashboard.jsx`:** Same restriction applied to the delete button in the favorites panel — now visible only to `super_admin`.
+- `admin` and `agent` users **no longer see the delete button at all** — it is fully hidden from the UI, not just disabled.
+- The backend `DELETE /meetings/{meeting_number}` endpoint remains unchanged — access control is enforced at the UI layer.
+
+---
+
 ## Data Persistence & Backups
 
 PostgreSQL data is stored in the Docker named volume `meet-data` (standalone stack):
