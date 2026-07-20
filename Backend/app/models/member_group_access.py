@@ -1,18 +1,18 @@
 ﻿# ============================================================================
 # MemberGroupAccess Model - רמת גישה של חבר למדור
 # ============================================================================
-# ×˜×‘×œ×” ×–×• ×ž×’×“×™×¨×” ××™×–×• ×¨×ž×ª ×’×™×©×” ×™×© ×œ×›×œ ×ž×©×ª×ž×© ×‘×›×œ ×ž×“×•×¨.
-# ×–×” ×ž××¤×©×¨ ×©×œ×™×˜×” ×¤×¨×˜× ×™×ª: ×ž×©×ª×ž×© ×' ×™×›×•×œ ×œ×¨××•×ª ×¨×§ ×¤×’×™×©×•×ª ××•×“×™×• ×‘×ž×“×•×¨ ×ž×¡×•×™×,
-# ××‘×œ ×ž×©×ª×ž×© ×‘' ×™×›×•×œ ×œ×¨××•×ª ×’× ×•×™×“××• ×‘××•×ª×• ×ž×“×•×¨.
+# טבלה זו מגדירה איזו רמת גישה יש לכל משתמש בכל מדור.
+# זה מאפשר שליטה פרטנית: משתמש א' יכול לראות רק פגישות אודיו במדור מסוים,
+# אבל משתמש ב' יכול לראות גם וידאו באותו מדור.
 #
 # Composite Primary Key (מפתח מורכב):
 #   (member_uuid, group_uuid, access_level)
-#   -> ×‘×¤×•×¢×œ × ×©×ž×¨×ª ×¨×©×•×ž×” ××—×ª ×œ×›×œ ×©×™×•×š (×ž×—×œ×™×¤×™× ××ª ×”×§×•×“× ×‘×›×œ ×¢×“×›×•×Ÿ)
+#   -> בפועל נשמרת רשומה אחת לכל שיוך (מחליפים את הקודם בכל עדכון)
 #
 # הזרימה:
-#   1. Admin ×ž×•×¡×™×£ agent ×œ×ž×“×•×¨ ×¢× ×¨×ž×ª ×’×™×©×” (audio/video/blast_dial/voice)
+#   1. Admin מוסיף agent למדור עם רמת גישה (audio/video/blast_dial/voice)
 #   2. הרמה נשמרת בטבלה הזו
-#   3. ×›×©×”agent × ×›× ×¡ ×œ×“×£ ×”×¤×’×™×©×•×ª, ×”frontend ×‘×•×“×§ ××ª ×”×¨×ž×” ×•×ž×¦×™×’ ×‘×”×ª××
+#   3. כשהagent נכנס לדף הפגישות, הfrontend בודק את הרמה ומציג בהתאם
 # ============================================================================
 
 from enum import Enum
@@ -25,10 +25,10 @@ from sqlalchemy.orm import relationship
 from app.core.database import Base
 
 
-# --- MemberGroupAccessLevel Enum - ×¨×ž×•×ª ×’×™×©×” ××¤×©×¨×™×•×ª ---
+# --- MemberGroupAccessLevel Enum - רמות גישה אפשריות ---
 # voice = גישה לקולית בלבד
-# audio = ×’×™×©×” ×œ×¤×’×™×©×•×ª ××•×“×™×•
-# video = ×’×™×©×” ×œ×¤×’×™×©×•×ª ×•×™×“××•
+# audio = גישה לפגישות אודיו
+# video = גישה לפגישות וידאו
 # blast_dial = גישה לחיוג המוני
 class MemberGroupAccessLevel(str, Enum):
     audio = "audio"
@@ -36,7 +36,7 @@ class MemberGroupAccessLevel(str, Enum):
     blast_dial = "blast_dial"
 
 
-# --- MemberGroupAccess Model - ×˜×‘×œ×ª ×”×¨×©××•×ª ×—×‘×¨-×ž×“×•×¨ ---
+# --- MemberGroupAccess Model - טבלת הרשאות חבר-מדור ---
 class MemberGroupAccess(Base):
     __tablename__ = "member_group_access"
 
@@ -55,7 +55,7 @@ class MemberGroupAccess(Base):
     # רמת הגישה שמוגדרת למשתמש הזה במדור הזה
     access_level = Column(SqlEnum(MemberGroupAccessLevel), primary_key=True)
 
-    # --- Relationships (×§×©×¨×™×) ---
+    # --- Relationships (קשרים) ---
     # Audit Trail (OPTIONAL - for compliance and debugging)
     created_at = Column(
         DateTime(timezone=True),

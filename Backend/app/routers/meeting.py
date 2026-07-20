@@ -40,6 +40,17 @@ validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 
 
+def _require_meeting_access(session: Session, user, meeting_number: str, cms_type: str | None):
+    """מוודא ש-agent יכול לגשת רק לפגישות המשויכות למדורים שלו."""
+    role = str(getattr(user.role, "value", user.role)).lower().strip()
+    if role in ("admin", "super_admin"):
+        return
+    if not cms_type:
+        raise HTTPException(status_code=404, detail="Meeting is not available")
+    if str(meeting_number) not in MeetingService(session=session)._accessible_numbers(str(user.UUID), cms_type):
+        raise HTTPException(status_code=403, detail="You are not allowed to access this meeting")
+
+
 # --- GET /meetings/all_meetings ---
 @meetingRouter.get("/all_meetings", status_code=200, response_model=list[MeetingOutput])
 def get_all_meetings(session: Session = Depends(get_db), access_level: Optional[AccessLevel] = None, user=Depends(all_members_validator)):
@@ -226,6 +237,7 @@ def get_meeting_live_participants(meeting_number: str, session: Session = Depend
     cs, cms_type = service._find_cospace(meeting_number)
     if not cs:
         raise HTTPException(status_code=404, detail="Meeting not found")
+    _require_meeting_access(session, user, meeting_number, cms_type)
     try:
         cms = CMS(cms_type=cms_type)
         active_calls = cms.get_active_calls()
@@ -250,7 +262,7 @@ def get_meeting_live_participants(meeting_number: str, session: Session = Depend
 
 
 @meetingRouter.post("/{meeting_number}/mute", status_code=200)
-def mute_meeting_participant(meeting_number: str, body: dict, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+def mute_meeting_participant(meeting_number: str, body: dict, session: Session = Depends(get_db), user=Depends(validator)):
     leg_id = body.get("leg_id")
     call_id = body.get("call_id")
     mute = body.get("mute", True)
@@ -259,6 +271,7 @@ def mute_meeting_participant(meeting_number: str, body: dict, session: Session =
     _, cms_type = MeetingService(session=session)._find_cospace(meeting_number)
     if not cms_type:
         raise HTTPException(status_code=404, detail="Meeting not found")
+    _require_meeting_access(session, user, meeting_number, cms_type)
     try:
         cms_success = CMS(cms_type=cms_type).mute_participant_by_leg_id(call_id, leg_id, bool(mute))
         return {"success": True, "cms": cms_success}
@@ -268,7 +281,7 @@ def mute_meeting_participant(meeting_number: str, body: dict, session: Session =
 
 
 @meetingRouter.post("/{meeting_number}/kick", status_code=200)
-def kick_meeting_participant(meeting_number: str, body: dict, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+def kick_meeting_participant(meeting_number: str, body: dict, session: Session = Depends(get_db), user=Depends(validator)):
     leg_id = body.get("leg_id")
     call_id = body.get("call_id")
     if not leg_id or not call_id:
@@ -276,6 +289,7 @@ def kick_meeting_participant(meeting_number: str, body: dict, session: Session =
     _, cms_type = MeetingService(session=session)._find_cospace(meeting_number)
     if not cms_type:
         raise HTTPException(status_code=404, detail="Meeting not found")
+    _require_meeting_access(session, user, meeting_number, cms_type)
     try:
         cms_success = CMS(cms_type=cms_type).kick_participant_by_leg_id(call_id, leg_id)
         return {"success": True, "cms": cms_success}

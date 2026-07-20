@@ -55,7 +55,7 @@ def upgrade() -> None:
 
     _create_enum("accesslevel", ["audio", "video", "blast_dial"])
     _create_enum("membergroupaccesslevel", ["audio", "video", "blast_dial"])
-    _create_enum("userrole", ["super_admin", "admin", "agent", "viewer"])
+    _create_enum("userrole", ["super_admin", "admin", "agent"])
 
     if not inspector.has_table("groups"):
         op.create_table(
@@ -74,7 +74,7 @@ def upgrade() -> None:
             sa.Column("password", sa.String(length=250), nullable=False),
             sa.Column(
                 "role",
-                postgresql.ENUM("super_admin", "admin", "agent", "viewer", name="userrole", create_type=False),
+                postgresql.ENUM("super_admin", "admin", "agent", name="userrole", create_type=False),
                 nullable=False,
             ),
             sa.PrimaryKeyConstraint("UUID"),

@@ -1,15 +1,15 @@
 ﻿# ============================================================================
-# UserRepository - ×©×›×‘×ª ×’×™×©×” ×œ× ×ª×•× ×™× ×©×œ ×ž×©×ª×ž×©×™×
+# UserRepository - שכבת גישה לנתונים של משתמשים
 # ============================================================================
-# ××—×¨××™×ª ×¢×œ ×›×œ ×¤×¢×•×œ×•×ª ×”DB ×”×§×©×•×¨×•×ª ×œ×ž×©×ª×ž×©×™×:
+# אחראית על כל פעולות הDB הקשורות למשתמשים:
 #   - יצירת משתמש (agent/admin)
 #   - שליפת משתמש לפי s_id
-#   - ×§×‘×œ×ª ×›×œ ×”×ž×©×ª×ž×©×™×
+#   - קבלת כל המשתמשים
 #   - מחיקת משתמש
 #   - שליפת פגישות מדור לפי רמת גישה של משתמש
 #
 # Pattern: Repository Pattern
-#   ×”×©×›×‘×” ×”×–×• ×ž×“×‘×¨×ª ×¨×§ ×¢× ×”DB ×“×¨×š SQLAlchemy.
+#   השכבה הזו מדברת רק עם הDB דרך SQLAlchemy.
 #   הService משתמש ברפוזיטורי ומוסיף לוגיקה עסקית.
 # ============================================================================
 
@@ -27,18 +27,13 @@ from app.models.member_group_access import MemberGroupAccess, MemberGroupAccessL
 class UserRepository(BaseRepository):
 
     def create_user(self, user_data: UserInCreate) -> UserOutput:
-        """  ×™×•×¦×¨ ×ž×©×ª×ž×© ×—×“×© ×‘DB ×•×ž×©×™×™×š ××•×ª×• ×œ×ž×“×•×¨×™× ×× ×¦×•×™× ×• """
+        """  יוצר משתמש חדש בDB ומשייך אותו למדורים אם צוינו """
         data = user_data.model_dump(exclude_none=True)
 
        
-        group_ids = data.pop("group_ids", [])
+        data.pop("group_ids", None)
 
         new_user = User(**data)
-
-        
-        if group_ids and len(group_ids) > 0:
-            groups = self.session.query(Group).filter(Group.UUID.in_(group_ids)).all()
-            new_user.groups.extend(groups)
 
         self.session.add(new_user)
         self.session.commit()
@@ -58,31 +53,25 @@ class UserRepository(BaseRepository):
         base["role"] = "admin"
         return self.create_user(UserInCreate(**base))
 
-    def create_viewer_user(self, user_data: UserInCreateNoRole):
-        """ יוצר משתמש עם תפקיד viewer אוטומטית """
-        base = user_data.model_dump(exclude_none=True)
-        base["role"] = "viewer"
-        return self.create_user(UserInCreate(**base))
-    
     def get_user_by_s_id(self, s_id: str) -> UserOutput:
-        """ ×ž×•×¦× ×ž×©×ª×ž×© ×œ×¤×™ ×ž×–×”×” ×”×ž×©×ª×ž×© (s_id) """
+        """ מוצא משתמש לפי מזהה המשתמש (s_id) """
         user = self.session.query(User).filter_by(s_id=s_id).first()
         return user
     
     def get_user_by_uuid(self, uuid: str) -> UserOutput:
-        """ ×ž×•×¦× ×ž×©×ª×ž×© ×œ×¤×™ ×ž×–×”×” ×”×ž×©×ª×ž×© (UUID) """
+        """ מוצא משתמש לפי מזהה המשתמש (UUID) """
         user = self.session.query(User).filter_by(UUID=uuid).first()
         return user
 
 
     def get_all_users(self) -> list[UserOutput]:
-        """ ×ž×—×–×™×¨ ××ª ×›×œ ×”×ž×©×ª×ž×©×™× ×‘×ž×¢×¨×›×ª """
+        """ מחזיר את כל המשתמשים במערכת """
         users = self.session.query(User).all()
         return users
 
     def get_users_in_same_groups(self, user_uuid: str) -> list[UserOutput]:
         """
-        ×ž×—×–×™×¨ ×ž×©×ª×ž×©×™× ×©×—×•×œ×§×™× ×œ×¤×—×•×ª ×ž×“×•×¨ ××—×“ ×¢× ×”×ž×©×ª×ž×© ×”× ×ª×•×Ÿ.
+        מחזיר משתמשים שחולקים לפחות מדור אחד עם המשתמש הנתון.
         """
         try:
             normalized_user_uuid = uuid.UUID(str(user_uuid))
@@ -108,7 +97,7 @@ class UserRepository(BaseRepository):
         return users
 
     def delete_user(self, user_id: str) -> bool:
-        """ ×ž×•×—×§ ×ž×©×ª×ž×© ×œ×¤×™ s_id. ×ž×—×–×™×¨ True ×× ×”×¦×œ×™×— """
+        """ מוחק משתמש לפי s_id. מחזיר True אם הצליח """
         user = self.session.query(User).filter_by(s_id=user_id).first()
         if user:
             self.session.delete(user)
@@ -138,17 +127,17 @@ class UserRepository(BaseRepository):
 
     def get_group_meetings_by_user_uuid(self, user_uuid: str, group_uuid: str) -> list[str]:
         """
-        ×ž×—×–×™×¨ ×¨×©×™×ž×ª ×”×¤×’×™×©×•×ª ×©×ž×©×ª×ž×© ×¨×©××™ ×œ×¨××•×ª ×‘×ž×“×•×¨ ×ž×¡×•×™×.
+        מחזיר רשימת הפגישות שמשתמש רשאי לראות במדור מסוים.
         הלוגיקה:
-          1. ×©×•×œ×£ ××ª ×¨×ž×•×ª ×”×’×™×©×” ×©×œ ×”×ž×©×ª×ž×© ×‘×ž×“×•×¨ ×ž×˜×‘×œ×ª member_group_access
-          2. ×ž×¡× ×Ÿ ××ª ×›×œ ×”×¤×’×™×©×•×ª ×©×”-accessLevel ×©×œ×”×Ÿ ×ª×•×× ×œ×¨×ž×ª ×”×’×™×©×”
-        ×–×” ×ž××¤×©×¨ ×œ×¡×•×›×Ÿ agent ×œ×¨××•×ª ×¨×§ ×¤×’×™×©×•×ª ×©×”×•× ×”×•×¨×©×” ×œ×¨××•×ª.
+          1. שולף את רמות הגישה של המשתמש במדור מטבלת member_group_access
+          2. מסנן את כל הפגישות שה-accessLevel שלהן תואם לרמת הגישה
+        זה מאפשר לסוכן agent לראות רק פגישות שהוא הורשה לראות.
         """
-        # ×©×œ×™×¤×ª ×”×§×©×¨×™× ×©×œ ×”×ž×©×ª×ž×© ×‘×ž×“×•×¨ ×”× ×ª×•×Ÿ
+        # שליפת הקשרים של המשתמש במדור הנתון
         connections = self.session.query(MemberGroupAccess).filter(MemberGroupAccess.member_uuid == user_uuid, MemberGroupAccess.group_uuid == group_uuid).all()
         # יצירת רשימת רמות הגישה המותרות
         access_allowed = {str(getattr(conn.access_level, "value", conn.access_level)) for conn in connections}
 
-        # ×¡×™× ×•×Ÿ ×¤×’×™×©×•×ª - ×ž×—×–×™×¨ ×¨×§ ×¤×’×™×©×•×ª ×©×”×¡×•×’ ×©×œ×”×Ÿ ×ª×•×× ×œ×¨×ž×ª ×”×’×™×©×”
+        # סינון פגישות - מחזיר רק פגישות שהסוג שלהן תואם לרמת הגישה
         links = self.session.query(GroupMeeting).filter(GroupMeeting.group_uuid == group_uuid).all()
         return [link.meeting_number for link in links if link.access_level in access_allowed]

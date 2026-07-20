@@ -1,15 +1,15 @@
 ﻿# ============================================================================
-# UserService - ×©×›×‘×ª ×œ×•×’×™×§×” ×¢×¡×§×™×ª ×œ×ž×©×ª×ž×©×™×
+# UserService - שכבת לוגיקה עסקית למשתמשים
 # ============================================================================
-# ×”×©×›×‘×” ×”×–×• ×ž×›×™×œ×” ××ª ×›×œ ×”×œ×•×’×™×§×” ×”×¢×¡×§×™×ª ×©×§×©×•×¨×” ×œ×ž×©×ª×ž×©×™×:
-#   - ×”×ª×—×‘×¨×•×ª (login): ××™×ž×•×ª ×¡×™×¡×ž×”, ×™×¦×™×¨×ª JWT
+# השכבה הזו מכילה את כל הלוגיקה העסקית שקשורה למשתמשים:
+#   - התחברות (login): אימות סיסמה, יצירת JWT
 #   - יצירת משתמש: הצפנת סיסמה, הגדרת תפקיד
-#   - ×ž×—×™×§×ª ×ž×©×ª×ž×©: ×‘×“×™×§×•×ª ×”×¨×©××•×ª (×ž×™ ×™×›×•×œ ×œ×ž×—×•×§ ×ž×™)
+#   - מחיקת משתמש: בדיקות הרשאות (מי יכול למחוק מי)
 #   - שליפת פגישות מדור לפי רמת גישה של המשתמש
 #
 # Pattern: Service Layer
 #   הService מתווך בין הRouter (הAPI) לבין הRepository (הDB).
-#   ×ž×•×¡×™×£ ×œ×•×’×™×§×” ×¢×¡×§×™×ª ×›×ž×• ×”×¦×¤× ×ª ×¡×™×¡×ž××•×ª, ×‘×“×™×§×•×ª ×”×¨×©××•×ª, ×•×¤×•×¨×ž×˜ ×¤×œ×˜.
+#   מוסיף לוגיקה עסקית כמו הצפנת סיסמאות, בדיקות הרשאות, ופורמט פלט.
 # ============================================================================
 
 from datetime import datetime, timedelta, timezone
@@ -44,20 +44,20 @@ class UserService:
     def login(self, login_details: UserInLogin) -> UserLoginOutput:
         """
         תהליך התחברות:
-        1. ×‘×•×“×§ ×× ×”×ž×©×ª×ž×© ×§×™×™× ×œ×¤×™ s_id
+        1. בודק אם המשתמש קיים לפי s_id
         2. משווה סיסמה מול hash בDB (Argon2)
-        3. ×™×•×¦×™×¨ JWT token ×¢× ×¤×¨×˜×™ ×”×ž×©×ª×ž×©
+        3. יוציר JWT token עם פרטי המשתמש
         4. מחזיר token + role
         """
         user = self.__userRepository.get_user_by_s_id(s_id=login_details.s_id)
-        if not user:  # ×‘×“×™×§×” ×× ×”×ž×©×ª×ž×© ×§×™×™× ×‘DB
+        if not user:  # בדיקה אם המשתמש קיים בDB
             raise HTTPException(status_code=400, detail="Please create an Account")
 
-        # ×”×©×•×•××ª ×”×¡×™×¡×ž×” ×ž×•×œ ×”hash ×”×©×ž×•×¨ ×‘DB
+        # השוואת הסיסמה מול הhash השמור בDB
         if HashHelp.verify_password(
             plain_password=login_details.password, hashed_password=user.password
         ):
-            # ×™×¦×™×¨×ª ×˜×•×§×Ÿ JWT ×¢× ×¤×¨×˜×™ ×”×ž×©×ª×ž×© (UUID, role, s_id)
+            # יצירת טוקן JWT עם פרטי המשתמש (UUID, role, s_id)
           
             access_token = AuthHand.generate_access_token(uuid=str(user.UUID), role=user.role, s_id=user.s_id)
             refresh_token = AuthHand.generate_refresh_token(uuid=str(user.UUID), session=self.session)
@@ -75,15 +75,15 @@ class UserService:
         raise HTTPException(status_code=401, detail="Please check your Credentials")
 
     def _role_value(self, role) -> str:
-        """×¢×•×–×¨ - ×ž×—×–×™×¨ ××ª ×”×¢×¨×š ×”×˜×§×¡×˜×•××œ×™ ×©×œ ×ª×¤×§×™×“ (×‘×™×Ÿ ×× ×–×” Enum ××• string)"""
+        """עוזר - מחזיר את הערך הטקסטואלי של תפקיד (בין אם זה Enum או string)"""
         return getattr(role, "value", role)
 
     def get_all_users(
         self, current_user_role: str, current_user_uuid: str | None = None
     ) -> list[UserOutput]:
         """
-        ×ž×—×–×™×¨ ××ª ×›×œ ×”×ž×©×ª×ž×©×™×.
-        ×× ×”×ž×©×ª×ž×© ×”× ×•×›×—×™ ×œ× super_admin - ×ž×¡×ª×™×¨ ×¡×•×¤×¨×™× ×ž×”×¨×©×™×ž×”.
+        מחזיר את כל המשתמשים.
+        אם המשתמש הנוכחי לא super_admin - מסתיר סופרים מהרשימה.
         """
         users = self.__userRepository.get_all_users()
         if current_user_role != "super_admin":
@@ -107,10 +107,6 @@ class UserService:
     def get_user_by_s_id_for_requester(
         self, s_id: str, requester_role: str, requester_uuid: str
     ) -> User:
-        """
-        ×ž×—×–×™×¨ ×ž×©×ª×ž×© ×œ×¤×™ s_id, ×¢× ×”×’×‘×œ×ª viewer:
-        viewer ×™×›×•×œ ×œ×¦×¤×•×ª ×¨×§ ×‘×ž×©×ª×ž×©×™× ×©×—×•×œ×§×™× ××™×ª×• ×ž×“×•×¨.
-        """
         user = self.get_user_by_s_id(s_id=s_id)
 
         return user
@@ -137,10 +133,10 @@ class UserService:
         self, user_id: str, current_user_role: str, current_user_s_id: str
     ) -> bool:
         """
-        ×ž×•×—×§ ×ž×©×ª×ž×© ×¢× ×‘×“×™×§×•×ª ×”×¨×©××•×ª:
-        - ×¨×§ admin ××• super_admin ×™×›×•×œ×™× ×œ×ž×—×•×§
-        - ×œ× × ×™×ª×Ÿ ×œ×ž×—×•×§ ××ª ×¢×¦×ž×š
-        - admin ×œ× ×™×›×•×œ ×œ×ž×—×•×§ super_admin
+        מוחק משתמש עם בדיקות הרשאות:
+        - רק admin או super_admin יכולים למחוק
+        - לא ניתן למחוק את עצמך
+        - admin לא יכול למחוק super_admin
         """
         if current_user_role not in ("admin", "super_admin"):
             raise HTTPException(
@@ -164,45 +160,57 @@ class UserService:
 
         return self.__userRepository.delete_user(user_id=user_id)
 
+    def _derive_responsible_access_level(self, user_data: UserInCreateNoRole) -> str:
+        """מוודא שאדמין מוגדר עם סוג פגישה אחד בלבד ומחזיר אותו."""
+        access_level = user_data.responsible_access_level
+        if access_level:
+            access_level = str(access_level).lower().strip()
+            if access_level not in ("audio", "video", "blast_dial"):
+                raise HTTPException(status_code=400, detail="Invalid responsible access level")
+            return access_level
+
+        if user_data.can_audio and user_data.can_video:
+            raise HTTPException(status_code=400, detail="Admin can only have one meeting access type")
+        if user_data.can_audio:
+            return "audio"
+        if user_data.can_video:
+            return "video"
+        raise HTTPException(status_code=400, detail="Admin must have a responsible access level")
+
     def create_agent_user(self, user_data: UserInCreateNoRole) -> UserOutput:
         """יוצר משתמש סוג agent - הסיסמה מוצפנת לפני שמירה"""
         hashed_password = HashHelp.get_password_hash(plain_password=user_data.password)
-        user_data.password = hashed_password
-        user = self.__userRepository.create_agent_user(user_data=user_data)
-        user = UserOutput(
-            UUID=user.UUID,
-            s_id=user.s_id,
-            username=user.username,
-            role=user.role,
-            responsible_access_level=getattr(user, "responsible_access_level", None),
-            can_audio=getattr(user, "can_audio", False) or False,
-            can_video=getattr(user, "can_video", False) or False,
-            groups=[m.group_uuid for m in user.group_access_levels],
+        user_data = user_data.model_copy(
+            update={
+                "password": hashed_password,
+                "responsible_access_level": None,
+                "can_audio": False,
+                "can_video": False,
+            }
         )
-        return user
+        user = self.__userRepository.create_agent_user(user_data=user_data)
+        return UserOutput.model_validate(user, from_attributes=True)
 
     def create_admin_user(self, user_data: UserInCreateNoRole) -> UserOutput:
         """יוצר משתמש סוג admin - הסיסמה מוצפנת לפני שמירה"""
+        access_level = self._derive_responsible_access_level(user_data)
         hashed_password = HashHelp.get_password_hash(plain_password=user_data.password)
-        user_data.password = hashed_password
-        user = self.__userRepository.create_admin_user(user_data=user_data)
-        user = UserOutput(
-            UUID=user.UUID,
-            s_id=user.s_id,
-            username=user.username,
-            role=user.role,
-            responsible_access_level=getattr(user, "responsible_access_level", None),
-            can_audio=getattr(user, "can_audio", False) or False,
-            can_video=getattr(user, "can_video", False) or False,
-            groups=[m.group_uuid for m in user.group_access_levels],
+        user_data = user_data.model_copy(
+            update={
+                "password": hashed_password,
+                "responsible_access_level": access_level,
+                "can_audio": access_level == "audio",
+                "can_video": access_level == "video",
+            }
         )
-        return user
+        user = self.__userRepository.create_admin_user(user_data=user_data)
+        return UserOutput.model_validate(user, from_attributes=True)
 
     def get_group_meetings_by_user_uuid(
         self, user_uuid: str, group_uuid: str
     ) -> list[str]:
         """
-        ×ž×—×–×™×¨ ×¨×©×™×ž×ª ×¤×’×™×©×•×ª ×©×ž×©×ª×ž×© ×¨×©××™ ×œ×¨××•×ª ×‘×ž×“×•×¨.
+        מחזיר רשימת פגישות שמשתמש רשאי לראות במדור.
         מסתמך על רמת הגישה מטבלת member_group_access.
         """
         meetings = self.__userRepository.get_group_meetings_by_user_uuid(

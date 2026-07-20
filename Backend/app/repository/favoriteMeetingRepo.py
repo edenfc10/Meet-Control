@@ -41,8 +41,6 @@ class FavoriteMeetingRepository(BaseRepository):
         ).all()
         if not rows:
             return False
-        if role == "viewer":
-            return True
         return any(
             str(getattr(r.access_level, "value", r.access_level)) == str(access_level) for r in rows
         )

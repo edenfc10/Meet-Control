@@ -83,6 +83,7 @@ export default function MeetingsPage({
   const userRole = currentUser?.role?.toLowerCase() || "";
   const canCreateMeeting = userRole === "super_admin" && accessLevel !== "audio";
   const isAdmin = userRole === "admin" || userRole === "super_admin";
+  const isStaff = isAdmin || userRole === "agent";
   const isSuperAdmin = userRole === "super_admin";
   const canEditPassword = isAdmin;
   const canEditName = isAdmin && accessLevel !== "audio";
@@ -845,7 +846,7 @@ export default function MeetingsPage({
               >
                 👥 {isHebrew ? "מורשים" : "Authorized"}
               </button>
-              {isAdmin && (
+              {isStaff && (
                 <button
                   className={`modal-tab${activeTab === "live" ? " active" : ""}`}
                   onClick={() => handleTabChange("live", participantsModal)}

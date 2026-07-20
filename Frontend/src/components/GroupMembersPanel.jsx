@@ -2,7 +2,6 @@ import { useMemo, useState, useEffect } from "react";
 import { groupAPI, userAPI } from "../services/api";
 
 const ACCESS_LEVELS = ["audio", "video", "blast_dial"];
-const ROLE_HIERARCHY = { super_admin: 4, admin: 3, agent: 2 };
 
 export default function GroupMembersPanel({
   language,
@@ -19,11 +18,9 @@ export default function GroupMembersPanel({
   const isHebrew = language === "he";
   const role = currentUser?.role;
   const myUUID = currentUser?.UUID || currentUser?.uuid;
-  const myLevel = ROLE_HIERARCHY[role] || 0;
   const isAdmin = role === "admin" || role === "super_admin";
-  const isAgent = role === "agent";
-  const canReadAllUsers = myLevel >= 2;
-  const canManageMembers = myLevel >= 2;
+  const canReadAllUsers = isAdmin;
+  const canManageMembers = isAdmin;
 
   const availableAccessLevels = ACCESS_LEVELS;
 
@@ -126,7 +123,7 @@ export default function GroupMembersPanel({
     return (allUsers || []).find((u) => String(u.UUID) === String(addUserId)) || null;
   }, [addUserId, allUsers]);
 
-  const canRemoveAccessFromSelectedUser = isAdmin || (isAgent && selectedAddUser?.role === "agent");
+  const canRemoveAccessFromSelectedUser = isAdmin;
 
   const newAccessLevelsToAdd = useMemo(() => {
     return addAccessLevels.filter((level) => !existingAccessLevelsForSelectedUser.includes(level));
@@ -225,7 +222,7 @@ export default function GroupMembersPanel({
                 <th>{text.username}</th>
                 <th>{text.tableRole}</th>
                 <th>{text.meetingTypes}</th>
-                {(isAdmin || isAgent) && <th></th>}
+                {isAdmin && <th></th>}
               </tr>
             </thead>
             <tbody>
@@ -241,8 +238,7 @@ export default function GroupMembersPanel({
                       {getMemberAccessLevels(member.UUID).length > 0 ? (
                         getMemberAccessLevels(member.UUID).map((lvl) => {
                           const canRemoveLevel =
-                            (isAdmin && availableAccessLevels.includes(lvl)) ||
-                            (isAgent && member.role === "agent");
+                            isAdmin && availableAccessLevels.includes(lvl);
                           return (
                             <span key={`${member.UUID}-${lvl}`} className="member-access-badge member-access-pill">
                               <span>{formatAccessLevel(lvl)}</span>
@@ -264,7 +260,7 @@ export default function GroupMembersPanel({
                       )}
                     </div>
                   </td>
-                  {(isAdmin || (isAgent && member.role === "agent")) && (
+                  {isAdmin && (
                     <td>
                       <button
                         className="btn-danger btn-sm"

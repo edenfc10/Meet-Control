@@ -342,15 +342,15 @@ super_admin  >  admin  >  agent
 
 ### admin
 
-- Can create agent users
+- Can create agent users (without group assignment — agents are assigned to groups from the Groups page)
+- Has a single `responsible_access_level` set by super_admin: `audio`, `video`, or `blast_dial`
+- Access to audio/video meetings is controlled by the derived `can_audio` / `can_video` flags (set automatically from `responsible_access_level`)
 - Can manage groups: create, update, delete
 - Can add/remove members to/from groups with an access level
 - Can assign meetings to groups
 - Can update and delete existing meetings
 - Cannot create new meetings
 - Cannot see or manage super_admin users
-- Access to audio/video meetings is controlled by `can_audio` and `can_video` flags (configurable by super_admin)
-- Can assign agents to any access level in a group regardless of own access flags
 
 ### agent
 
@@ -362,27 +362,26 @@ super_admin  >  admin  >  agent
 
 ## Admin Access Levels
 
-Each `admin` user can be granted access to `audio` meetings, `video` meetings, or both — via the boolean flags `can_audio` and `can_video`.
+Each `admin` user has a single `responsible_access_level` set by a `super_admin`:
 
-| Flag | Behaviour |
+| Level | Behaviour |
 |---|---|
-| `can_audio = true` | Admin can see and manage audio meetings |
-| `can_video = true` | Admin can see and manage video meetings |
-| Both flags `true` | Admin has access to both types |
-| Both flags `false` | Admin has no meeting type access |
+| `audio` | Admin can see and manage audio meetings |
+| `video` | Admin can see and manage video meetings |
+| `blast_dial` | Admin can see and manage blast dial meetings |
 
-- Configured via the Users page using checkboxes (replaces the old single `responsible_access_level` dropdown)
-- Stored as two separate boolean columns on the `users` table: `can_audio`, `can_video`
-- The sidebar dynamically shows `/audio-meetings` and/or `/video-meetings` links based on these flags
-- Admins can assign agents to **any** access level in a group — the type restriction applies only to meeting management, not member management
-
-> The legacy `responsible_access_level` field is kept for backwards compatibility but is no longer the primary access control mechanism.
+- Configured via the Users page with a single dropdown when creating an admin
+- Stored in the `responsible_access_level` column on the `users` table
+- The `can_audio` and `can_video` boolean flags are derived automatically from this value
+- The sidebar dynamically shows `/audio-meetings` and/or `/video-meetings` links based on the derived flags
+- Admins cannot be assigned to groups themselves — only agents can be group members
 
 ---
 
 ## Access Level System
 
-When an admin adds a user (agent) to a group, they must assign one of three access levels:
+When an admin or super_admin adds a user (agent) to a group, they assign one of three access levels.
+Creating an agent via `POST /users/create-agent` no longer assigns a group or access level — that is done from the Groups page.
 
 | Level        | Meeting type visible     |
 | ------------ | ------------------------ |
@@ -442,8 +441,8 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 | ------ | ------------------------------ | ------------------ | -------------------------------------------------------- |
 | GET    | `/users/all`                   | All roles          | Get all users (super_admin sees everyone)                |
 | GET    | `/users/{s_id}`                | All roles          | Get a specific user                                      |
-| POST   | `/users/create-agent`          | admin, super_admin | Create an agent user                                     |
-| POST   | `/users/create-admin`          | super_admin only   | Create an admin user (optionally with `responsible_access_level`) |
+| POST   | `/users/create-agent`          | admin, super_admin | Create an agent user (no group/access assigned at creation) |
+| POST   | `/users/create-admin`          | super_admin only   | Create an admin user with a single `responsible_access_level` (audio / video / blast_dial) |
 | PUT    | `/users/update/{user_uuid}`    | admin, super_admin | Update user details including `responsible_access_level` |
 | DELETE | `/users/{user_id}`             | admin, super_admin | Delete a user                                            |
 | GET    | `/users/group/{uuid}/meetings` | All roles          | Get meetings for a group by access level                 |
@@ -549,9 +548,9 @@ All endpoints require a valid JWT token, which is stored in HTTP-only cookies on
 | username | String | Display name |
 | password | String | Argon2 hash |
 | role | Enum | super_admin / admin / agent |
-| responsible_access_level | String nullable | Legacy field, kept for compatibility |
-| can_audio | Boolean | Admin can manage audio meetings |
-| can_video | Boolean | Admin can manage video meetings |
+| responsible_access_level | String nullable | Single meeting type for admin users: audio / video / blast_dial |
+| can_audio | Boolean | Derived from responsible_access_level (true when level is audio) |
+| can_video | Boolean | Derived from responsible_access_level (true when level is video) |
 
 **groups**
 | Column | Type | Notes |
@@ -607,14 +606,14 @@ User ——< favorite_meeting >————— Meeting (by meeting_number + acce
 | ---------------------- | ------------------- | -------------------------------- | --------------------------------------------------------------------------------------------------- |
 | `/login`               | Login               | Everyone (unauthenticated)       | Basic authentication                                                                                |
 | `/dashboard`           | Dashboard           | admin, super_admin               | Live meeting stats (active calls + participants by type), favorite meetings panel with full actions: edit name, edit password, delete, participants, assign group, remove favorite |
-| `/users`               | User management     | All roles                        | Create users (admin creates agents; super_admin creates admins+agents), edit user details, `can_audio`/`can_video` checkboxes for admin users, delete users, search & filter |
+| `/users`               | User management     | admin, super_admin               | Create users (admin creates agents; super_admin creates admins with single meeting type + agents), edit user details, `responsible_access_level` dropdown for admin users, delete users, search & filter |
 | `/groups`              | Group management    | All roles                        | Create/edit/delete groups, manage members with access levels (audio/video/blast_dial), assign multiple meetings per group, agent one-group rule enforced |
 | `/audio-meetings`      | Audio meetings      | Agents with audio access, admins with `can_audio=true`    | Browse audio meetings, search by meeting number / group name / no-group filter, authorized participant count per meeting, assign multiple groups from card (admin+), pagination, participants modal (authorized + live tabs) |
 | `/video-meetings`      | Video meetings      | Agents with video access, admins with `can_video=true`    | Browse video meetings, search by meeting number / group name / no-group filter, authorized participant count, assign multiple groups from card (admin+), pagination, create meeting (super_admin), participants modal (authorized + live tabs) |
 | `/blast-dial-meetings` | Blast dial meetings | Users with blast_dial access     | Browse blast dial meetings, search by meeting number / group name / no-group filter, authorized participant count, assign group from card (admin+), pagination, create meeting (super_admin), participants modal with tabs |
 | `/reports`             | Reports             | admin, super_admin               | Participant report (דוח משתתפים) + unused meetings report                                           |
 | `/servers`             | Servers             | super_admin only                 | Manage CMS servers: audio/video/blast-dial types with IP, username, password                        |
-| `/logs`                | Logs                | super_admin only                 | Accordion log viewer — per date, 3 tabs, lazy-loaded, newest first, download per date or all logs |
+| `/logs`                | Logs                | super_admin only                 | Accordion log browser — per date, 3 tabs, lazy-loaded, newest first, download per date or all logs |
 | `/profile`             | Profile             | All roles                        | Current user info                                                                                   |
 | `/help`                | Help                | All roles                        | Guidance & documentation                                                                            |
 
@@ -722,7 +721,7 @@ logs/
 - Initialized once in `main.py` via `LoggerManager.initialize()`
 - Logs volume is mounted: `./Backend/logs:/app/logs`
 
-### Log Viewer (frontend `/logs`)
+### Log Browser (frontend `/logs`)
 
 - Accessible to `super_admin` only (sidebar link + route guard)
 - Lists all available log dates as expandable accordions
@@ -736,8 +735,8 @@ logs/
 **Example log lines:**
 
 ```
-[INFO]-17:15:23 Creating viewer user with s_id=logviewer001 by requester s_id=superadmin role=super_admin
-[INFO]-17:15:23 AUDIT mutation POST /users/create-viewer | query=- | user=superadmin:super_admin ip=172.18.0.1 | status=200 | duration_ms=151.18
+[INFO]-17:15:23 Creating agent user with s_id=logagent001 by requester s_id=superadmin role=super_admin
+[INFO]-17:15:23 AUDIT mutation POST /users/create-agent | query=- | user=superadmin:super_admin ip=172.18.0.1 | status=200 | duration_ms=151.18
 ```
 
 ---
@@ -884,6 +883,15 @@ This change was made because the CMS API was not accepting XML payloads correctl
 ---
 
 ## Recent Changes
+
+### Admin Single Access Type & Agent Creation Cleanup
+
+- `admin` users are now created with a single `responsible_access_level` (`audio`, `video`, or `blast_dial`)
+  - `can_audio` and `can_video` are derived automatically from this value
+- `POST /users/create-agent` no longer accepts `group_uuid` or `responsible_access_level`
+- Agents are created without group membership; group assignment is done exclusively from the Groups page
+- `Users.jsx` admin creation form now uses a single dropdown instead of `can_audio`/`can_video` checkboxes
+- `UserService.create_agent_user` and `UserService.create_admin_user` updated to enforce the new model
 
 ### Meeting Identifier: URI → Call ID
 

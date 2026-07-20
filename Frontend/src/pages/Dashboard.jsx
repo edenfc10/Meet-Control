@@ -35,29 +35,11 @@ function EditIcon() {
   );
 }
 
-function DeleteIcon() {
-  return (
-    <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-      <path d="M3 6h18" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-      <path
-        d="M8 6V4h8v2m-1 0v13a2 2 0 01-2 2h-2a2 2 0 01-2-2V6"
-        fill="none"
-        stroke="currentColor"
-        strokeWidth="1.8"
-        strokeLinecap="round"
-        strokeLinejoin="round"
-      />
-      <path d="M10 11v6M14 11v6" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
-    </svg>
-  );
-}
-
 export default function Dashboard({ language = "en" }) {
   const isHebrew = language === "he";
   const { currentUser } = useAuth();
   const userRole = currentUser?.role?.toLowerCase() || "";
   const isAdmin = userRole === "admin" || userRole === "super_admin";
-  const isSuperAdmin = userRole === "super_admin";
   const isStaff = isAdmin || userRole === "agent";
   const canEditPassword = isAdmin;
   const canEditName = isAdmin;
@@ -75,10 +57,6 @@ export default function Dashboard({ language = "en" }) {
   const [editName, setEditName] = useState("");
   const [editNameError, setEditNameError] = useState("");
   const [savingName, setSavingName] = useState(false);
-  const [deletingId, setDeletingId] = useState(null);
-  const [deleteError, setDeleteError] = useState("");
-  const [meetingToDelete, setMeetingToDelete] = useState(null);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [participantsModal, setParticipantsModal] = useState(null);
   const [participantsLoading, setParticipantsLoading] = useState(false);
   const [participantsError, setParticipantsError] = useState("");
@@ -184,41 +162,6 @@ export default function Dashboard({ language = "en" }) {
       setEditError(err.response?.data?.detail || (isHebrew ? "עדכון הסיסמה נכשל" : "Failed to update password"));
     } finally {
       setSaving(false);
-    }
-  };
-
-  const handleDelete = (meeting) => {
-    setMeetingToDelete(meeting);
-    setShowDeleteConfirm(true);
-  };
-
-  const closeDeleteConfirm = () => {
-    setMeetingToDelete(null);
-    setShowDeleteConfirm(false);
-  };
-
-  const confirmDeleteMeeting = async () => {
-    if (!meetingToDelete) return;
-    setDeletingId(meetingToDelete.m_number);
-    setDeleteError("");
-    try {
-      await meetingAPI.deleteMeeting(meetingToDelete.m_number, meetingToDelete.accessLevel);
-      if (editId === meetingToDelete.m_number) {
-        setEditId(null);
-        setEditPassword("");
-      }
-      if (editNameId === meetingToDelete.m_number) {
-        setEditNameId(null);
-        setEditName("");
-      }
-      closeDeleteConfirm();
-      showToast(isHebrew ? "הוועידה נמחקה" : "Meeting deleted", "info");
-      await loadFavorites();
-      await loadLiveStats();
-    } catch (err) {
-      setDeleteError(err.response?.data?.detail || (isHebrew ? "מחיקת הוועידה נכשלה" : "Failed to delete meeting"));
-    } finally {
-      setDeletingId(null);
     }
   };
 
@@ -457,10 +400,6 @@ export default function Dashboard({ language = "en" }) {
         removeFavorite: "הסר",
         editName: "שם",
         editPassword: "סיסמה",
-        delete: "מחק",
-        deleteMeeting: "מחק",
-        deleteModalTitle: "מחיקת ועידה",
-        deleteModalMessage: "למחוק את ועידה",
         participants: "משתתפים",
         authorized: "מורשים",
         live: "פעילים",
@@ -470,7 +409,6 @@ export default function Dashboard({ language = "en" }) {
         assign: "שייך",
         removeAssign: "הסר שיוך",
         saving: "שומר...",
-        deleting: "מוחק...",
         assigning: "משייך...",
         cancel: "ביטול",
         save: "שמור",
@@ -512,10 +450,6 @@ export default function Dashboard({ language = "en" }) {
         removeFavorite: "Remove",
         editName: "Name",
         editPassword: "Password",
-        delete: "Delete",
-        deleteMeeting: "Delete",
-        deleteModalTitle: "Delete Meeting",
-        deleteModalMessage: "Delete meeting",
         participants: "Participants",
         authorized: "Authorized",
         live: "Live",
@@ -525,7 +459,6 @@ export default function Dashboard({ language = "en" }) {
         assign: "Assign",
         removeAssign: "Remove",
         saving: "Saving...",
-        deleting: "Deleting...",
         assigning: "Assigning...",
         cancel: "Cancel",
         save: "Save",
@@ -742,18 +675,6 @@ export default function Dashboard({ language = "en" }) {
                                 </span>
                               </button>
                             )}
-                            {isSuperAdmin && (
-                              <button
-                                className="meeting-delete-btn"
-                                onClick={() => handleDelete(meeting)}
-                                disabled={deletingId === meeting.m_number}
-                              >
-                                <span className="action-btn-content">
-                                  <span className="action-btn-icon"><DeleteIcon /></span>
-                                  <span>{deletingId === meeting.m_number ? labels.deleting : labels.delete}</span>
-                                </span>
-                              </button>
-                            )}
                             <button
                               className="meeting-participants-btn"
                               onClick={() => handleViewParticipants(meeting)}
@@ -876,7 +797,6 @@ export default function Dashboard({ language = "en" }) {
                   <table className="participants-table">
                     <thead>
                       <tr>
-                        <th>{labels.name}</th>
                         <th>{labels.username}</th>
                         <th>{labels.role}</th>
                         <th>{labels.group}</th>
@@ -885,7 +805,6 @@ export default function Dashboard({ language = "en" }) {
                     <tbody>
                       {participants.map((p, i) => (
                         <tr key={i}>
-                          <td>{p.name || "—"}</td>
                           <td>{p.username || "—"}</td>
                           <td>{p.role || "—"}</td>
                           <td>{p.group || "—"}</td>
@@ -912,7 +831,7 @@ export default function Dashboard({ language = "en" }) {
                         <th>{labels.name}</th>
                         <th>{labels.state}</th>
                         <th>{labels.muted}</th>
-                        {isAdmin && <th>{labels.actions}</th>}
+                        {isStaff && <th>{labels.actions}</th>}
                       </tr>
                     </thead>
                     <tbody>
@@ -924,7 +843,7 @@ export default function Dashboard({ language = "en" }) {
                             <td>{p.name || p.remoteParty || "—"}</td>
                             <td>{p.state || p.status || "—"}</td>
                             <td>{isMuted ? "🔇" : "🔊"}</td>
-                            {isAdmin && (
+                            {isStaff && (
                               <td className="participants-actions-cell">
                                 <button
                                   className={`participant-action-btn ${isMuted ? "unmute" : "mute"}`}
@@ -1022,31 +941,6 @@ export default function Dashboard({ language = "en" }) {
         </div>
       )}
 
-      {showDeleteConfirm && meetingToDelete && (
-        <div className="modal-overlay" onClick={closeDeleteConfirm}>
-          <div className="modal-card" onClick={(e) => e.stopPropagation()}>
-            <h3 className="modal-title">{labels.deleteModalTitle}</h3>
-            <p style={{ marginBottom: "20px", color: "#d32f2f", fontWeight: "500" }}>
-              {labels.deleteModalMessage} #{meetingToDelete.m_number || meetingToDelete.m_number?.slice(0, 8)}?
-            </p>
-
-            <div className="modal-actions">
-              <button className="btn-secondary" onClick={closeDeleteConfirm} disabled={deletingId === meetingToDelete.m_number}>
-                {labels.cancel}
-              </button>
-              <button className="btn-danger" onClick={confirmDeleteMeeting} disabled={deletingId === meetingToDelete.m_number}>
-                {deletingId === meetingToDelete.m_number ? labels.deleting : labels.deleteMeeting}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {deleteError && (
-        <div className="meetings-error meetings-inline-error" style={{ marginTop: "12px" }}>
-          {deleteError}
-        </div>
-      )}
 
       {toast && (
         <div className={`toast-notification toast-${toast.type}`}>

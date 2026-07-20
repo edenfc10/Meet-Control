@@ -26,8 +26,7 @@ export default function Users({ language = "en" }) {
     username: "",
     password: "",
     role: "agent",
-    can_audio: false,
-    can_video: false,
+    responsible_access_level: "",
   });
   const [submitting, setSubmitting] = useState(false);
   const [createError, setCreateError] = useState("");
@@ -97,6 +96,7 @@ export default function Users({ language = "en" }) {
     responsibleAccessPlaceholder: isHebrew ? "בחר סוג" : "Select type",
     audioLabel: isHebrew ? "אודיו" : "Audio",
     videoLabel: isHebrew ? "וידאו" : "Video",
+    blastDialLabel: isHebrew ? "הזנקה" : "Blast Dial",
     newPasswordPlaceholder: isHebrew
       ? "סיסמה חדשה (אם לא משנים משאירים ריק)"
       : "New Password (leave blank to keep)",
@@ -208,8 +208,15 @@ export default function Users({ language = "en" }) {
     };
 
     if (formData.role === "admin") {
-      payload.can_audio = formData.can_audio;
-      payload.can_video = formData.can_video;
+      if (!formData.responsible_access_level) {
+        setCreateError(
+          isHebrew
+            ? "חובה לבחור סוג פגישה אחד לאדמין."
+            : "Admin must have a single meeting type.",
+        );
+        return;
+      }
+      payload.responsible_access_level = formData.responsible_access_level;
     }
 
     try {
@@ -233,8 +240,7 @@ export default function Users({ language = "en" }) {
         username: "",
         password: "",
         role: roleOptions[0] || "agent",
-        can_audio: false,
-        can_video: false,
+        responsible_access_level: "",
       });
       await fetchUsers();
     } catch (err) {
@@ -480,16 +486,17 @@ export default function Users({ language = "en" }) {
                 ))}
               </select>
               {formData.role === "admin" ? (
-                <div style={{ display: "flex", gap: 16, alignItems: "center", padding: "6px 0" }}>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                    <input type="checkbox" name="can_audio" checked={formData.can_audio} onChange={handleChange} />
-                    {text.audioLabel}
-                  </label>
-                  <label style={{ display: "flex", alignItems: "center", gap: 6, cursor: "pointer" }}>
-                    <input type="checkbox" name="can_video" checked={formData.can_video} onChange={handleChange} />
-                    {text.videoLabel}
-                  </label>
-                </div>
+                <select
+                  className="search-select"
+                  name="responsible_access_level"
+                  value={formData.responsible_access_level}
+                  onChange={handleChange}
+                >
+                  <option value="">{text.responsibleAccessPlaceholder}</option>
+                  <option value="audio">{text.audioLabel}</option>
+                  <option value="video">{text.videoLabel}</option>
+                  <option value="blast_dial">{text.blastDialLabel}</option>
+                </select>
               ) : null}
             </div>
 

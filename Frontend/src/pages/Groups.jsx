@@ -8,15 +8,12 @@ import GroupMembersPanel from "../components/GroupMembersPanel";
 import GroupMeetingsPanel from "../components/GroupMeetingsPanel";
 import "./Groups.css";
 
-const ROLE_HIERARCHY = { super_admin: 4, admin: 3, agent: 2 };
-
 export default function Groups({ language = "en" }) {
   const { currentUser } = useAuth();
   const isHebrew = language === "he";
   const role = currentUser?.role;
-  const myLevel = ROLE_HIERARCHY[role] || 0;
   const isAdmin = role === "admin" || role === "super_admin";
-  const canReadAllUsers = myLevel >= 2;
+  const canReadAllUsers = isAdmin;
 
   const text = {
     pageTitle: isHebrew ? "מדורים" : "Groups",

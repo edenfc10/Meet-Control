@@ -36,8 +36,6 @@ class GroupService:
     def _to_output(self, group) -> GroupOutput:
         """
         ממיר ORM object של מדור ל-Pydantic GroupOutput.
-        ×ž×ž×™×¨ ××ª ×”×—×‘×¨×™× ×•×”×¤×’×™×©×•×ª ×œ×¨×©×™×ž×•×ª UUID ×‘×œ×‘×“,
-        ×•×’× ×ž×ž×™×¨ ××ª ×¨×ž×•×ª ×”×’×™×©×” ×œ×¤×•×¨×ž×˜ MemberAccessOutput.
         """
         unique_member_ids = list(dict.fromkeys(m.member_uuid for m in group.member_access_levels))
 
@@ -76,7 +74,6 @@ class GroupService:
         return [self._to_output(m) for m in self.__groupRepository.get_all_groups()]
 
     def get_groups_by_user_uuid(self, user_uuid: str) -> list[GroupOutput]:
-        """×ž×—×–×™×¨ ×¨×§ ××ª ×”×ž×“×•×¨×™× ×©×œ ×”×ž×©×ª×ž×© ×”×ž×—×•×‘×¨"""
         return [
             self._to_output(m)
             for m in self.__groupRepository.get_groups_by_user_uuid(user_uuid=user_uuid)
@@ -101,7 +98,7 @@ class GroupService:
             return self._to_output(group)
         raise HTTPException(status_code=400, detail="Group is not available")
 
-    # היררכיית roles: super_admin > admin > agent > viewer
+    # היררכיית roles: super_admin > admin > agent
     ROLE_HIERARCHY = {"super_admin": 4, "admin": 3, "agent": 2}
 
     def add_member_to_group(
@@ -116,14 +113,12 @@ class GroupService:
         מוסיף חבר למדור עם רמת גישה.
         היררכיית הרשאות:
         - super_admin: יכול לשייך את כולם חוץ מעצמו
-        - admin: יכול לשייך agent ו-viewer בלבד
-        - agent: יכול לשייך רק viewer, ורק לקבוצות שהוא שייך אליהן
-        - viewer: לא יכול לשייך אף אחד
+        - admin: יכול לשייך agent בלבד
+        - agent: לא יכול לשייך חברים
         """
         requester_level = self.ROLE_HIERARCHY.get(requester_role, 0)
 
-        # viewer לא יכול לשייך אף אחד
-        if requester_level < 2:
+        if requester_level < 3:
             raise HTTPException(status_code=403, detail="Insufficient permissions to add members to groups")
 
         # שולף את המשתמש המוסף
@@ -176,7 +171,7 @@ class GroupService:
         requester_role: str = None,
     ) -> GroupOutput:
         requester_level = self.ROLE_HIERARCHY.get(requester_role, 0)
-        if requester_level < 2:
+        if requester_level < 3:
             raise HTTPException(status_code=403, detail="Insufficient permissions to remove members from groups")
 
         target = self.__groupRepository._find_user(user_s_id)

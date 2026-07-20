@@ -1,9 +1,9 @@
 ﻿# ============================================================================
-# Super Admin Bootstrap - ×™×¦×™×¨×ª ×ž× ×”×œ ×¢×œ ×‘×”×¤×¢×œ×” ×¨××©×•× ×”
+# Super Admin Bootstrap - יצירת מנהל על בהפעלה ראשונה
 # ============================================================================
-# ×§×•×‘×¥ ×–×” ×¨×¥ ×‘×¢×œ×™×™×ª ×”××¤×œ×™×§×¦×™×” (lifespan ×‘-main.py).
-# ×™×•×¦×¨ ×ž×©×ª×ž×© super_admin ×¨××©×•× ×™ ×× ×”×•× ×œ× ×§×™×™×.
-# ×¤×¨×˜×™ ×”×—×™×‘×•×¨ × ×œ×§×—×™× ×ž×ž×©×ª× ×™ ×¡×‘×™×‘×” (.env):
+# קובץ זה רץ בעליית האפליקציה (lifespan ב-main.py).
+# יוצר משתמש super_admin ראשוני אם הוא לא קיים.
+# פרטי החיבור נלקחים ממשתני סביבה (.env):
 #   SUPER_ADMIN_USERNAME ו-SUPER_ADMIN_PASSWORD
 # ============================================================================
 
@@ -20,7 +20,7 @@ logger = logging.getLogger(__name__)
 
 load_dotenv()
 
-# ×§×¨×™××ª ×¤×¨×˜×™ ×”×¡×•×¤×¨ ××“×ž×™×Ÿ ×ž×ž×©×ª× ×™ ×”×¡×‘×™×‘×”
+# קריאת פרטי הסופר אדמין ממשתני הסביבה
 SUPER_ADMIN_USERNAME = os.getenv("SUPER_ADMIN_USERNAME")
 SUPER_ADMIN_PASSWORD = os.getenv("SUPER_ADMIN_PASSWORD")
 
@@ -30,9 +30,9 @@ class SuperAdminTest(object):
     @staticmethod 
     def create_super_admin():
         """
-        ×™×•×¦×¨ ×ž×©×ª×ž×© super_admin ×× ×”×•× ×œ× ×§×™×™×.
-        ×¨×¥ ×¤×¢× ××—×ª ×‘×¢×œ×™×™×ª ×”××¤×œ×™×§×¦×™×”.
-        ×ž×©×ª×ž×© ×‘-_session_factory ×™×©×™×¨×•×ª (×œ× FastAPI Depends).
+        יוצר משתמש super_admin אם הוא לא קיים.
+        רץ פעם אחת בעליית האפליקציה.
+        משתמש ב-_session_factory ישירות (לא FastAPI Depends).
         """
         from app.repository.userRepo import UserRepository
         from app.schema.user import UserInCreate

@@ -1,15 +1,15 @@
 ﻿# ============================================================================
-# User Schemas (Pydantic) - ×¡×›×ž×•×ª ×§×œ×˜/×¤×œ×˜ ×œ×ž×©×ª×ž×©×™× ×•×ž×“×•×¨×™×
+# User Schemas (Pydantic) - סכמות קלט/פלט למשתמשים ומדורים
 # ============================================================================
-# ×§×•×‘×¥ ×–×” ×ž×’×“×™×¨ ××ª ×›×œ ×”×ž×•×“×œ×™× (DTOs) ×©×œ Pydantic ×œ×•×œ×™×“×¦×™×” ×•×¡×¨×™××œ×™×–×¦×™×”.
-# ×”× ×ž×©×ž×©×™× ×œ:
+# קובץ זה מגדיר את כל המודלים (DTOs) של Pydantic לולידציה וסריאליזציה.
+# הם משמשים ל:
 #   1. ולידציה של קלט מהלקוח (request body)
 #   2. פורמט התשובה ללקוח (response_model)
-#   3. ××•×‘×™×™×§×˜×™ ×”×¢×‘×¨×” ×¤× ×™×ž×™×™× ×‘×™×Ÿ ×”×©×›×‘×•×ª
+#   3. אובייקטי העברה פנימיים בין השכבות
 #
 # המנהג ConfigDict:
-#   - extra="forbid" -> ×—×•×¡× ×©×“×•×ª × ×•×¡×¤×™× ×‘×§×œ×˜ (×ž× ×™×¢×ª ×”×–×¨×§×”)
-#   - from_attributes=True -> ×ž××¤×©×¨ ×”×ž×¨×” ×©×œ ORM objects ×œ-Pydantic
+#   - extra="forbid" -> חוסם שדות נוספים בקלט (מניעת הזרקה)
+#   - from_attributes=True -> מאפשר המרה של ORM objects ל-Pydantic
 # ============================================================================
 
 from enum import Enum
@@ -27,24 +27,24 @@ class UserRole(str, Enum):
     admin = "admin"
     agent = "agent"
 
-    model_config = ConfigDict(use_enum_values=True)  # ×©×•×ž×¨ ××ª ×”×¢×¨×š ×”×˜×§×¡×˜×•××œ×™ ×•×œ× ××ª ×”××•×‘×™×™×§×˜
+    model_config = ConfigDict(use_enum_values=True)  # שומר את הערך הטקסטואלי ולא את האובייקט
 
 
 # --- GroupInCreate - קלט ליצירת מדור ---
 class GroupInCreate(BaseModel):
-    name: str  # ×©× ×”×ž×“×•×¨ ×”×—×“×©
+    name: str  # שם המדור החדש
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 
 # --- GroupInUpdate - קלט לעדכון מדור ---
 class GroupInUpdate(BaseModel):
-    name: Optional[str] = None  # ××•×¤×¦×™×•× ×œ×™ - ××¤×©×¨ ×œ×¢×“×›×Ÿ ×¨×§ ××ª ×ž×” ×©×¨×œ×•×•× ×˜×™
+    name: Optional[str] = None  # אופציונלי - אפשר לעדכן רק את מה שרלוונטי
 
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 
 # --- MemberAccessOutput - פלט רמת גישה של חבר ---
-# ×ž×™×™×¦×’ ××ª ×”×¨×ž×” ×©×œ ×›×œ ×ž×©×ª×ž×© ×‘×ª×•×š ×ž×“×•×¨ ×ž×¡×•×™×
+# מייצג את הרמה של כל משתמש בתוך מדור מסוים
 class MemberAccessOutput(BaseModel):
     user_id: UUID                          # UUID של המשתמש
     access_level: MemberGroupAccessLevel   # רמת הגישה שלו במדור
@@ -52,12 +52,12 @@ class MemberAccessOutput(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 
-# --- GroupOutput - ×¤×œ×˜ ×©×œ ×ž×“×•×¨ ×ž×œ× ---
-# ×–×” ×ž×” ×©×—×•×–×¨ ×œ×œ×§×•×— ×›×©×©×•××œ×™× ×ž×™×“×¢ ×¢×œ ×ž×“×•×¨
+# --- GroupOutput - פלט של מדור מלא ---
+# זה מה שחוזר ללקוח כששואלים מידע על מדור
 class GroupOutput(BaseModel):
     UUID: UUID                                                                     # מזהה המדור
-    name: str                                                                      # ×©× ×”×ž×“×•×¨
-    members: Optional[List[UUID]] = Field(default_factory=list)                    # ×¨×©×™×ž×ª UUIDs ×©×œ ×”×—×‘×¨×™×
+    name: str                                                                      # שם המדור
+    members: Optional[List[UUID]] = Field(default_factory=list)                    # רשימת UUIDs של החברים
     meetings: Optional[List[str]] = Field(default_factory=list)                    # רשימת מספרי הפגישות המשויכות
     member_access_levels: Optional[List[MemberAccessOutput]] = Field(default_factory=list)  # רמות גישה לכל חבר
 
@@ -65,13 +65,13 @@ class GroupOutput(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 
-# --- UserInCreate - ×§×œ×˜ ×œ×™×¦×™×¨×ª ×ž×©×ª×ž×© (×¢× ×ª×¤×§×™×“) ---
+# --- UserInCreate - קלט ליצירת משתמש (עם תפקיד) ---
 class UserInCreate(BaseModel):
     s_id: str                                              # מזהה משתמש (כמו מספר עובד)
-    username: str                                          # ×©× ×ª×¦×•×’×”
+    username: str                                          # שם תצוגה
     password: str                                          # סיסמה (תוצפן לפני שמירה)
     role: UserRole                                         # תפקיד (super_admin/admin/agent)
-    group_ids: Optional[List[UUID]] = Field(default_factory=list)  # ×ž×“×•×¨×™× ×œ×©×™×•×š (××•×¤×¦×™×•× ×œ×™)
+    group_ids: Optional[List[UUID]] = Field(default_factory=list)  # מדורים לשיוך (אופציונלי)
     responsible_access_level: Optional[str] = None
     can_audio: bool = False
     can_video: bool = False
@@ -94,7 +94,7 @@ class UserInCreateNoRole(BaseModel):
 
 
 # --- UserOutput - פלט של משתמש ---
-# ×–×” ×ž×” ×©×—×•×–×¨ ×œ×œ×§×•×— - ×œ×¢×•×œ× ×œ× ×›×•×œ×œ ×¡×™×¡×ž×”!
+# זה מה שחוזר ללקוח - לעולם לא כולל סיסמה!
 class UserOutput(BaseModel):
     UUID: UUID
     s_id: str
@@ -103,10 +103,10 @@ class UserOutput(BaseModel):
     responsible_access_level: Optional[str] = None
     can_audio: bool = False
     can_video: bool = False
-    groups: Optional[List[UUID]] = Field(default_factory=list)  # ×¨×©×™×ž×ª UUIDs ×©×œ ×”×ž×“×•×¨×™×
+    groups: Optional[List[UUID]] = Field(default_factory=list)  # רשימת UUIDs של המדורים
 
-    # ×•×œ×™×“×˜×•×¨ ×ž×•×ª×× ××™×©×™×ª - ×ž×ž×™×¨ ××•×‘×™×™×§×˜×™ Group ×œ-UUID ×‘×œ×‘×“
-    # × ×“×¨×© ×›×™ SQLAlchemy ×ž×—×–×™×¨ ××•×‘×™×™×§×˜×™× ×ž×œ××™× ×•×œ× UUIDs
+    # ולידטור מותאם אישית - ממיר אובייקטי Group ל-UUID בלבד
+    # נדרש כי SQLAlchemy מחזיר אובייקטים מלאים ולא UUIDs
     @field_validator('groups', mode='before')
     @classmethod
     def extract_group_uuids(cls, v):
@@ -119,7 +119,7 @@ class UserOutput(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 
-# --- BoolOutput - ×ª×©×•×‘×” ×‘×•×•×œ×™×× ×™×ª ×¤×©×•×˜×” ---
+# --- BoolOutput - תשובה בווליאנית פשוטה ---
 # משמש לפעולות כמו מחיקה - הצליח/נכשל
 class BoolOutput(BaseModel):
     success: bool
@@ -178,11 +178,11 @@ class RefreshTokenData(BaseModel):
     model_config = ConfigDict(extra="forbid", from_attributes=True)
 
 # --- UserToken - תשובת התחברות ---
-# ×—×•×–×¨ ×œ×œ×§×•×— ××—×¨×™ login ×ž×•×¦×œ×—
+# חוזר ללקוח אחרי login מוצלח
 
 
-# --- UserWithToken - ×ž×©×ª×ž×© ×ž×œ× + ×˜×•×§×Ÿ ---
-# ×ž×¨×—×™×‘ ××ª UserOutput ×•×ž×•×¡×™×£ ×˜×•×§×Ÿ
+# --- UserWithToken - משתמש מלא + טוקן ---
+# מרחיב את UserOutput ומוסיף טוקן
 class UserWithToken(UserOutput):
     token: str
 

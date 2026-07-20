@@ -143,7 +143,7 @@ def add_member_to_group(
     user_s_id: str,
     access_level: MemberGroupAccessLevel,
     session: Session = Depends(get_db),
-    user=Depends(validator),
+    user=Depends(allow_admins_only),
 ):
     try:
         LoggerManager.get_logger().info(
@@ -170,7 +170,7 @@ def add_member_to_group(
 # --- POST /groups/{uuid}/remove-member/{s_id} ---
 # מסיר חבר מהקבוצה + מוחק הרשאות גישה שלו
 @groupRouter.post("/{group_uuid}/remove-member/{user_s_id}", status_code=200, response_model=GroupOutput)
-def remove_member_from_group(group_uuid: str, user_s_id: str, session: Session = Depends(get_db), user=Depends(validator)):
+def remove_member_from_group(group_uuid: str, user_s_id: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
         LoggerManager.get_logger().info(
             "User %s:%s with role %s is removing member %s from group UUID=%s",
@@ -192,7 +192,7 @@ def remove_member_access_from_group(
     user_s_id: str,
     access_level: MemberGroupAccessLevel,
     session: Session = Depends(get_db),
-    user=Depends(validator),
+    user=Depends(allow_admins_only),
 ):
     try:
         LoggerManager.get_logger().info(

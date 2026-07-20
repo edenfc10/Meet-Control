@@ -51,8 +51,7 @@ ALTER TYPE public.membergroupaccesslevel OWNER TO postgres;
 CREATE TYPE public.userrole AS ENUM (
     'super_admin',
     'admin',
-    'agent',
-    'viewer'
+    'agent'
 );
 
 

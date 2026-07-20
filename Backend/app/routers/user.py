@@ -17,7 +17,7 @@ userRouter = APIRouter()
 allow_super_admin_only = TokenValidator(allowed_roles=["super_admin"])
 allow_admins_only = TokenValidator(allowed_roles=["admin", "super_admin"])
 validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
-all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent", "viewer"])
+all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 
 
 @userRouter.get("/all", status_code=200, response_model=list[UserOutput])

@@ -10,7 +10,7 @@ from logger import LoggerManager
 
 favoriteRouter = APIRouter()
 
-all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent", "viewer"])
+all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 
 
 @favoriteRouter.post("/meetings/{meeting_number}", status_code=200, response_model=FavoriteToggleResponse)
