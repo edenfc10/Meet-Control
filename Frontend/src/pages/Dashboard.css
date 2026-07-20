@@ -588,7 +588,8 @@
 }
 
 .fav-meeting-pass,
-.fav-meeting-participants {
+.fav-meeting-participants,
+.fav-meeting-group {
   padding: 3px 8px;
   border-radius: 6px;
   background: #f3f6f9;

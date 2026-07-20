@@ -452,6 +452,7 @@ export default function Dashboard({ language = "en" }) {
         noFavorites: "אין ועידות מועדפות עדיין.",
         noParticipants: "אין משתתפים",
         noPassword: "ללא סיסמה",
+        noGroup: "ללא מדור",
         remove: "הסר",
         removeFavorite: "הסר",
         editName: "שם",
@@ -506,6 +507,7 @@ export default function Dashboard({ language = "en" }) {
         noFavorites: "No favorites yet.",
         noParticipants: "No participants",
         noPassword: "No password",
+        noGroup: "No group",
         remove: "Remove",
         removeFavorite: "Remove",
         editName: "Name",
@@ -683,6 +685,12 @@ export default function Dashboard({ language = "en" }) {
                             </span>
                           </div>
                           <div className="fav-meeting-details">
+                            <span className="fav-meeting-group">
+                              {labels.group}: {" "}
+                              {meeting.groups?.length
+                                ? meeting.groups.map(g => groupMap[String(g).toLowerCase()] || String(g).slice(0, 8) + "...").join(" | ")
+                                : labels.noGroup}
+                            </span>
                             <span className="fav-meeting-pass">
                               {meeting.password || labels.noPassword}
                             </span>
