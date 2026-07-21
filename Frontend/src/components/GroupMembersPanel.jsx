@@ -43,8 +43,6 @@ export default function GroupMembersPanel({
     removeMemberModalMessage: isHebrew ? "האם אתה בטוח שברצונך להסיר את המשתמש" : "Are you sure you want to remove user",
     removingUser: isHebrew ? "מסיר..." : "Removing...",
     addMember: isHebrew ? "הוספת חבר" : "Add Member",
-    agentsOnly: isHebrew ? " (Agents בלבד)" : " (Agents only)",
-    agentOnly: isHebrew ? " (Agent בלבד)" : " (Agents only)",
     noUsersToAdd: isHebrew ? "אין משתמשים זמינים להוספה." : "No users available to add.",
     searchUsersAria: isHebrew ? "חיפוש משתמשים" : "Search users",
     addableUsersAria: isHebrew ? "משתמשים זמינים להוספה" : "Addable users",
@@ -221,7 +219,7 @@ export default function GroupMembersPanel({
                 <th>S_ID</th>
                 <th>{text.username}</th>
                 <th>{text.tableRole}</th>
-                <th>{text.meetingTypes}</th>
+                {isAdmin && <th>{text.meetingTypes}</th>}
                 {isAdmin && <th></th>}
               </tr>
             </thead>
@@ -233,33 +231,34 @@ export default function GroupMembersPanel({
                   <td>
                     <span className={`role-badge role-${member.role}`}>{member.role}</span>
                   </td>
-                  <td>
-                    <div className="member-access-list">
-                      {getMemberAccessLevels(member.UUID).length > 0 ? (
-                        getMemberAccessLevels(member.UUID).map((lvl) => {
-                          const canRemoveLevel =
-                            isAdmin && availableAccessLevels.includes(lvl);
-                          return (
-                            <span key={`${member.UUID}-${lvl}`} className="member-access-badge member-access-pill">
-                              <span>{formatAccessLevel(lvl)}</span>
-                              {canRemoveLevel && (
-                                <button
-                                  type="button"
-                                  className="member-access-remove"
-                                  onClick={() => handleRemoveMemberAccess(member.UUID || member.s_id, lvl)}
-                                  title={`${text.remove} ${formatAccessLevel(lvl)}`}
-                                >
-                                  ×
-                                </button>
-                              )}
-                            </span>
-                          );
-                        })
-                      ) : (
-                        <span className="groups-empty">{text.noAccessLevels}</span>
-                      )}
-                    </div>
-                  </td>
+                  {isAdmin && (
+                    <td>
+                      <div className="member-access-list">
+                        {getMemberAccessLevels(member.UUID).length > 0 ? (
+                          getMemberAccessLevels(member.UUID).map((lvl) => {
+                            const canRemoveLevel = availableAccessLevels.includes(lvl);
+                            return (
+                              <span key={`${member.UUID}-${lvl}`} className="member-access-badge member-access-pill">
+                                <span>{formatAccessLevel(lvl)}</span>
+                                {canRemoveLevel && (
+                                  <button
+                                    type="button"
+                                    className="member-access-remove"
+                                    onClick={() => handleRemoveMemberAccess(member.UUID || member.s_id, lvl)}
+                                    title={`${text.remove} ${formatAccessLevel(lvl)}`}
+                                  >
+                                    ×
+                                  </button>
+                                )}
+                              </span>
+                            );
+                          })
+                        ) : (
+                          <span className="groups-empty">{text.noAccessLevels}</span>
+                        )}
+                      </div>
+                    </td>
+                  )}
                   {isAdmin && (
                     <td>
                       <button
@@ -280,10 +279,7 @@ export default function GroupMembersPanel({
       {/* הוספת חבר */}
       {canManageMembers && (
         <div className="groups-modal-section">
-          <h4>
-            {text.addMember}
-            {role === "agent" ? text.agentsOnly : role === "admin" ? text.agentOnly : ""}
-          </h4>
+          <h4>{text.addMember}</h4>
           {addableUsers.length === 0 ? (
             <div className="groups-empty">{text.noUsersToAdd}</div>
           ) : (

@@ -49,6 +49,7 @@ export const groupAPI = {
   deleteGroup: (groupId) => api.delete(`/groups/${groupId}`),
   updateGroup: (groupId, groupData) => api.put(`/groups/${groupId}`, groupData),
   getGroupMembers: (groupId) => api.get(`/groups/${groupId}/members`),
+  getGroupMeetings: (groupId) => api.get(`/groups/${groupId}/meetings`),
   addMember: (groupId, userId, accessLevel) =>
     api.post(`/groups/${groupId}/add-member/${userId}`, null, {
       params: { access_level: accessLevel },

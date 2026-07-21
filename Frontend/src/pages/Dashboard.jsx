@@ -298,26 +298,38 @@ export default function Dashboard({ language = "en" }) {
       setLiveError("");
       setLiveWarning("");
 
-      const [audioRes, videoRes, blastRes] = await Promise.allSettled([
-        meetingAPI.getAllMeetings("audio"),
-        meetingAPI.getAllMeetings("video"),
-        meetingAPI.getAllMeetings("blast_dial"),
-      ]);
-      const meetings = [
-        ...(audioRes.status === "fulfilled" ? audioRes.value.data || [] : []),
-        ...(videoRes.status === "fulfilled" ? videoRes.value.data || [] : []),
-        ...(blastRes.status === "fulfilled" ? blastRes.value.data || [] : []),
-      ];
+      const allTypes = ["audio", "video", "blast_dial"];
+      const allowedTypes = (() => {
+        if (userRole !== "admin") return allTypes;
+        const list = [];
+        if (currentUser?.can_audio) list.push("audio");
+        if (currentUser?.can_video) list.push("video");
+        return list;
+      })();
+
+      const resultsByType = Object.fromEntries(
+        allTypes.map((t) => [t, { status: "fulfilled", value: { data: [] } }])
+      );
+      const requests = allowedTypes.map((t) =>
+        meetingAPI.getAllMeetings(t).then((res) => ({ type: t, res }))
+      );
+      const settled = await Promise.allSettled(requests);
+      settled.forEach((r) => {
+        if (r.status === "fulfilled") {
+          resultsByType[r.value.type] = { status: "fulfilled", value: r.value.res };
+        }
+      });
+
       const dbStats = {
         audio: { meetings: 0, participants: 0 },
         video: { meetings: 0, participants: 0 },
         blast_dial: { meetings: 0, participants: 0 },
       };
-      meetings.forEach((m) => {
-        const type = String(m.accessLevel || "").toLowerCase();
-        if (!["audio", "video", "blast_dial"].includes(type)) return;
-        dbStats[type].meetings += 1;
-        dbStats[type].participants += m.participant_count ?? 0;
+      allTypes.forEach((type) => {
+        const result = resultsByType[type];
+        if (result.status === "fulfilled" && Array.isArray(result.value.data)) {
+          dbStats[type].meetings = result.value.data.length;
+        }
       });
 
       let cmsStats = null;
@@ -328,33 +340,37 @@ export default function Dashboard({ language = "en" }) {
       } catch (cmsErr) {
         if (cmsErr.response?.status === 403) {
           cmsWarning = isHebrew
-            ? "נתוני CMS מוגבלים להרשאות גבוהות — מספרי משתתפים מבסיס הנתונים"
-            : "CMS live data requires elevated permissions — participant counts from database";
+            ? "נתוני CMS מוגבלים להרשאות גבוהות"
+            : "CMS live data requires elevated permissions";
         } else {
           cmsWarning = isHebrew
-            ? "CMS לא זמין — מספרי משתתפים מבסיס הנתונים"
-            : "CMS is unreachable — participant counts from database";
+            ? "CMS לא זמין"
+            : "CMS is unreachable";
         }
       }
 
       const stats = {
         audio: {
           meetings: dbStats.audio.meetings,
-          participants: cmsStats?.audio?.participants ?? dbStats.audio.participants,
+          participants: cmsStats?.audio?.participants ?? 0,
         },
         video: {
           meetings: dbStats.video.meetings,
-          participants: cmsStats?.video?.participants ?? dbStats.video.participants,
+          participants: cmsStats?.video?.participants ?? 0,
         },
         blast_dial: {
           meetings: dbStats.blast_dial.meetings,
-          participants:
-            cmsStats?.blast_dial?.participants ?? dbStats.blast_dial.participants,
+          participants: cmsStats?.blast_dial?.participants ?? 0,
         },
       };
 
+      const totalActive =
+        (stats.audio.meetings || 0) +
+        (stats.video.meetings || 0) +
+        (stats.blast_dial.meetings || 0);
+
       setLiveStats({
-        total_active: meetings.length,
+        total_active: totalActive,
         by_type: stats,
       });
       setLastUpdated(new Date());

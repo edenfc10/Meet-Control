@@ -103,7 +103,7 @@ def get_meetings_by_group_uuid(group_uuid: str, session: Session = Depends(get_d
 
 # --- GET /meetings/live-status ---
 @meetingRouter.get("/live-status", status_code=200)
-def get_live_status(session: Session = Depends(get_db), user=Depends(allow_admins_only)):
+def get_live_status(session: Session = Depends(get_db), user=Depends(all_members_validator)):
     try:
         return MeetingService(session=session).get_active_meetings()
     except Exception as error:

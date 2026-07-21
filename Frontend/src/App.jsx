@@ -142,7 +142,13 @@ export default function App() {
                   />
                   <Route
                     path="/users"
-                    element={<Users language={language} />}
+                    element={
+                      ["super_admin", "admin"].includes(currentUser?.role) ? (
+                        <Users language={language} />
+                      ) : (
+                        <Navigate to="/dashboard" replace />
+                      )
+                    }
                   />
                   <Route
                     path="/reports"

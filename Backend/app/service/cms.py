@@ -121,6 +121,8 @@ class CMS:
     def create_cospace(self, name: str, uri: Optional[str] = None, passcode: Optional[str] = None) -> Dict:
         """Create a new CoSpace"""
         form_data = {"name": name}
+        if uri:
+            form_data["callId"] = uri
         if passcode:
             form_data["passcode"] = passcode
 

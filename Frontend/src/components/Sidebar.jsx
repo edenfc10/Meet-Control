@@ -66,6 +66,7 @@ export default function Sidebar({ language = "en", onToggleLanguage }) {
                 if (item.path === "/dashboard") return isStaff;
                 if (item.path === "/servers") return isSuperAdmin;
                 if (item.path === "/logs") return isSuperAdmin;
+                if (item.path === "/users") return isAdmin;
                 if (item.path === "/reports") return isAdmin;
                 if (currentUser?.role === "admin") {
                   if (item.path === "/audio-meetings") return canAudio;

@@ -16,12 +16,11 @@ userRouter = APIRouter()
 
 allow_super_admin_only = TokenValidator(allowed_roles=["super_admin"])
 allow_admins_only = TokenValidator(allowed_roles=["admin", "super_admin"])
-validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 
 
 @userRouter.get("/all", status_code=200, response_model=list[UserOutput])
-def get_all_users(session: Session = Depends(get_db), user=Depends(all_members_validator)):
+def get_all_users(session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
         user_role = str(getattr(user.role, "value", user.role)).lower().strip()
         LoggerManager.get_logger().info(
@@ -45,7 +44,7 @@ def get_all_users(session: Session = Depends(get_db), user=Depends(all_members_v
 
 
 @userRouter.get("/uuid/{uuid}", status_code=200, response_model=UserOutput)
-def get_user_by_uuid(uuid: str, session: Session = Depends(get_db), user=Depends(validator)):
+def get_user_by_uuid(uuid: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
         LoggerManager.get_logger().info(
             "User %s:%s with role %s requested user by uuid=%s",
@@ -70,7 +69,7 @@ def get_user_by_uuid(uuid: str, session: Session = Depends(get_db), user=Depends
 
 
 @userRouter.get("/{s_id}", status_code=200, response_model=UserOutput)
-def get_user_by_s_id(s_id: str, session: Session = Depends(get_db), user=Depends(validator)):
+def get_user_by_s_id(s_id: str, session: Session = Depends(get_db), user=Depends(allow_admins_only)):
     try:
         LoggerManager.get_logger().info(
             "User %s:%s with role %s requested user by s_id=%s",
@@ -212,7 +211,7 @@ def delete_user(user_id: str, session: Session = Depends(get_db), user=Depends(a
 def get_group_meetings_by_user_uuid(
     group_uuid: str,
     session: Session = Depends(get_db),
-    user=Depends(validator),
+    user=Depends(all_members_validator),
 ):
     try:
         LoggerManager.get_logger().info(

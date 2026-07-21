@@ -16,6 +16,7 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from app.schema.user import BoolOutput, GroupInCreate, GroupInUpdate, GroupOutput, UserOutput
+from app.schema.meeting import MeetingOutput
 from app.core.database import get_db
 from sqlalchemy.orm import Session
 from app.security.TokenValidator import TokenValidator
@@ -134,6 +135,36 @@ def get_group_members(group_uuid: str, session: Session = Depends(get_db), user=
             "Failed to fetch members of group UUID=%s. Error: %s", group_uuid, str(error),
         )
         raise HTTPException(status_code=500, detail="Internal Server Error")
+
+
+@groupRouter.get("/{group_uuid}/meetings", status_code=200, response_model=list[MeetingOutput])
+def get_group_meetings(group_uuid: str, session: Session = Depends(get_db), user=Depends(all_members_validator)):
+    try:
+        user_role = str(getattr(user.role, "value", user.role)).lower().strip()
+        group_service = GroupService(session=session)
+        if user_role == "agent" and not group_service.user_is_member_of_group(
+            user_uuid=str(user.UUID), group_uuid=group_uuid
+        ):
+            raise HTTPException(status_code=403, detail="You are not allowed to view meetings of this group")
+
+        from app.models.meeting import GroupMeeting
+        from app.service.meetingService import MeetingService
+
+        meeting_service = MeetingService(session=session)
+        output = []
+        links = session.query(GroupMeeting).filter(GroupMeeting.group_uuid == group_uuid).all()
+        for link in links:
+            access_level = str(getattr(link.access_level, "value", link.access_level)).lower()
+            cospace = meeting_service._find_cospace_by_type(str(link.meeting_number), access_level)
+            if cospace:
+                output.append(meeting_service._to_output(cospace, access_level))
+        return output
+    except HTTPException:
+        raise
+    except Exception as error:
+        LoggerManager.get_logger().exception("Failed to fetch meetings for group UUID=%s. Error: %s", group_uuid, str(error))
+        raise HTTPException(status_code=500, detail="Internal Server Error")
+
 
 # --- POST /groups/{uuid}/add-member/{s_id}?access_level=... ---
 # מוסיף חבר לקבוצה עם רמת גישה (נשלח כ-query parameter)

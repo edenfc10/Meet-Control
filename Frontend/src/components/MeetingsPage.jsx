@@ -433,7 +433,20 @@ export default function MeetingsPage({
       setShowCreate(false);
       if (onRefresh) onRefresh();
     } catch (err) {
-      setCreateError(err.response?.data?.detail || text.createError);
+      let errorMsg = err.response?.data?.detail || text.createError;
+      if (errorMsg.includes("CMS error") && errorMsg.includes("<?xml")) {
+        const xmlMatch = errorMsg.match(/<parameterError parameter="([^"]+)" error="([^"]+)" \/>/);
+        if (xmlMatch) {
+          const param = xmlMatch[1];
+          const errorText = xmlMatch[2];
+          if (param === "passcode") {
+            errorMsg = isHebrew ? "הסיסמה חייבת להכיל לפחות 8 ספרות" : "Password must contain at least 8 digits";
+          } else {
+            errorMsg = isHebrew ? errorText : errorText;
+          }
+        }
+      }
+      setCreateError(errorMsg);
     } finally {
       setCreating(false);
     }

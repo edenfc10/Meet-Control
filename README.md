@@ -1112,14 +1112,31 @@ The new architecture is simpler and more aligned with the actual data source (CM
 
 ---
 
-## Recent Changes (July 13, 2026)
+## Recent Changes
 
-### Delete Meeting — Restricted to super_admin Only
+### Dashboard — Partial Admin Permission Filtering
 
-- **Frontend — `MeetingsPage.jsx`:** The delete meeting button is now rendered only when `isSuperAdmin === true`. Previously it was shown to all `admin` and `super_admin` users.
-- **Frontend — `Dashboard.jsx`:** Same restriction applied to the delete button in the favorites panel — now visible only to `super_admin`.
-- `admin` and `agent` users **no longer see the delete button at all** — it is fully hidden from the UI, not just disabled.
-- The backend `DELETE /meetings/{meeting_number}` endpoint remains unchanged — access control is enforced at the UI layer.
+`Frontend/src/pages/Dashboard.jsx` — `loadLiveStats` now filters meeting API calls based on admin's `can_audio` and `can_video` permissions:
+
+- Partial admins (e.g., `admin` with only `can_video`) only request their allowed meeting types from the API
+- Unauthorized meeting types display `0` meetings and `0` participants in the live activity section
+- Ensures consistent role-based access control across the Dashboard UI
+
+### CMS Error Handling — User-Friendly Messages
+
+`Frontend/src/components/MeetingsPage.jsx` — Added XML error parsing for CMS validation errors:
+
+- Parses CMS XML responses to extract specific parameter errors
+- Displays user-friendly messages for common errors (e.g., "Password must contain at least 8 digits" instead of raw XML)
+- Supports both Hebrew and English error messages
+
+### CMS Create CoSpace — callId Parameter Fix
+
+`Backend/app/service/cms.py` — `create_cospace` now sends `callId` parameter to CMS:
+
+- Meeting number is now correctly sent as `callId` when creating a CoSpace
+- Previously, the meeting number was passed as `uri` but not sent to CMS, causing meetings to be created with auto-generated callIds
+- Ensures the meeting number entered by the user is preserved in the CMS
 
 ---
 

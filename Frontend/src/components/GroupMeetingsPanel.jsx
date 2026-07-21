@@ -13,6 +13,7 @@ export default function GroupMeetingsPanel({
   currentUser,
 }) {
   const isHebrew = language === "he";
+  const canManageMeetings = ["admin", "super_admin"].includes(currentUser?.role);
 
   const accessLevelLabels = {
     audio: isHebrew ? "ועידות אודיו" : "audio",
@@ -22,7 +23,8 @@ export default function GroupMeetingsPanel({
   const formatAccessLevel = (level) => accessLevelLabels[level] || level;
 
   const text = {
-    meetings: isHebrew ? "הוספת ועידות" : "Add Meetings",
+    meetings: isHebrew ? "ועידות" : "Meetings",
+    viewMeetings: isHebrew ? "ועידות" : "Meetings",
     meetingNumber: isHebrew ? "מספר ועידה" : "Meeting #",
     type: isHebrew ? "סוג" : "Type",
     remove: isHebrew ? "הסר" : "Remove",
@@ -33,6 +35,9 @@ export default function GroupMeetingsPanel({
     meetingUnavailable: isHebrew ? "הוועידה הזאת לא זמינה לקבוצה הזו." : "This meeting is not available for this group.",
     addMeetingError: isHebrew ? "הוספת הוועידה נכשלה." : "Failed to add meeting.",
     removeMeetingError: isHebrew ? "הסרת הוועידה נכשלה." : "Failed to remove meeting.",
+    unavailableMeetings: isHebrew
+      ? "חלק מהפגישות המשויכות לא נמצאו בשרת CMS ולכן לא ניתן להציג את פרטיהן."
+      : "Some assigned meetings were not found on the CMS server, so their details cannot be displayed.",
   };
 
   const [addMeetingId, setAddMeetingId] = useState("");
@@ -126,6 +131,15 @@ export default function GroupMeetingsPanel({
     }
   };
 
+  const unavailableMeetings = (selectedGroup.meetings || []).filter((compositeKey) => {
+    const [mNum, mType] = String(compositeKey).split(":");
+    return !allMeetings.some(
+      (meeting) =>
+        String(meeting.m_number) === mNum &&
+        (meeting.accessLevel || "").toLowerCase() === (mType || "").toLowerCase(),
+    );
+  });
+
   const totalUnassigned = allMeetings.filter(
     (m) => !selectedGroupMeetingKeys.has(`${m.m_number}:${(m.accessLevel || "").toLowerCase()}`)
   ).length;
@@ -136,7 +150,11 @@ export default function GroupMeetingsPanel({
 
   return (
     <div className="groups-modal-section">
-      <h4>{text.meetings} ({selectedGroup.meetings?.length ?? 0})</h4>
+      <h4>{canManageMeetings ? text.meetings : text.viewMeetings}</h4>
+
+      {unavailableMeetings.length > 0 && (
+        <div className="groups-warning" role="alert">{text.unavailableMeetings}</div>
+      )}
 
       {/* פגישות קיימות */}
       {selectedGroup.meetings?.length > 0 && (
@@ -146,7 +164,7 @@ export default function GroupMeetingsPanel({
               <th>{text.meetingNumber}</th>
               <th>{isHebrew ? "שם" : "Name"}</th>
               <th>{text.type}</th>
-              <th></th>
+              {canManageMeetings && <th></th>}
             </tr>
           </thead>
           <tbody>
@@ -161,12 +179,18 @@ export default function GroupMeetingsPanel({
                   <td style={{ maxWidth: 160, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                     {meeting?.name || "—"}
                   </td>
-                  <td>{meeting ? formatAccessLevel(meeting.accessLevel) : formatAccessLevel(mType)}</td>
                   <td>
-                    <button className="btn-danger btn-sm" onClick={() => handleRemoveMeeting(mNum, mType)}>
-                      {text.remove}
-                    </button>
+                    <span className={`meeting-type-badge ${(meeting?.accessLevel || mType || "").toLowerCase()}`}>
+                      {meeting ? formatAccessLevel(meeting.accessLevel) : formatAccessLevel(mType)}
+                    </span>
                   </td>
+                  {canManageMeetings && (
+                    <td>
+                      <button className="btn-danger btn-sm" onClick={() => handleRemoveMeeting(mNum, mType)}>
+                        {text.remove}
+                      </button>
+                    </td>
+                  )}
                 </tr>
               );
             })}
@@ -175,7 +199,7 @@ export default function GroupMeetingsPanel({
       )}
 
       {/* הוספת פגישה */}
-      {totalUnassigned === 0 ? (
+      {canManageMeetings && (totalUnassigned === 0 ? (
         <div className="groups-empty">{text.noMeetingsToAdd}</div>
       ) : (
         <div className="groups-add-row groups-add-meeting-row">
@@ -241,7 +265,7 @@ export default function GroupMeetingsPanel({
             {addMeetingLoading ? text.adding : text.add}
           </button>
         </div>
-      )}
+      ))}
     </div>
   );
 }

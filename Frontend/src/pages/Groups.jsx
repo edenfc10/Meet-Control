@@ -61,7 +61,7 @@ export default function Groups({ language = "en" }) {
     save: isHebrew ? "שמור" : "Save",
     cancel: isHebrew ? "ביטול" : "Cancel",
     members: isHebrew ? "חברים" : "Members",
-    meetings: isHebrew ? "הוספת ועידות" : "Add Meetings",
+    meetings: isHebrew ? "ועידות" : "Meetings",
     manage: isHebrew ? "ניהול" : "Manage",
     editName: isHebrew ? "ערוך שם" : "Edit Name",
     delete: isHebrew ? "מחיקה" : "Delete",
@@ -124,6 +124,7 @@ export default function Groups({ language = "en" }) {
   const [modalMembers, setModalMembers] = useState([]);
   const [modalLoading, setModalLoading] = useState(false);
   const [modalError, setModalError] = useState("");
+  const [manageTab, setManageTab] = useState("members");
   const [showDeleteGroupConfirm, setShowDeleteGroupConfirm] = useState(false);
   const [groupToDelete, setGroupToDelete] = useState(null);
   const [deleteGroupLoading, setDeleteGroupLoading] = useState(false);
@@ -221,12 +222,13 @@ export default function Groups({ language = "en" }) {
     setSelectedGroup(group);
     setModalLoading(true);
     setModalError("");
+    setManageTab("members");
     setModalMembers([]);
     try {
       const [membersResp, usersResp, meetingsResp] = await Promise.allSettled([
         groupAPI.getGroupMembers(group.UUID),
         canReadAllUsers ? userAPI.getAllUsers() : Promise.resolve({ data: [] }),
-        meetingAPI.getAllMeetings(),
+        isAdmin ? meetingAPI.getAllMeetings() : groupAPI.getGroupMeetings(group.UUID),
       ]);
       setModalMembers(membersResp.status === "fulfilled" ? membersResp.value.data || [] : []);
       setAllUsers(usersResp.status === "fulfilled" ? usersResp.value.data || [] : []);
@@ -409,20 +411,58 @@ export default function Groups({ language = "en" }) {
               <div className="groups-empty">{text.loading}</div>
             ) : (
               <div className="groups-modal-body">
-                {modalError && <div className="groups-error">{modalError}</div>}
-                <GroupMembersPanel
-                  language={language}
-                  selectedGroup={selectedGroup}
-                  setSelectedGroup={setSelectedGroup}
-                  modalMembers={modalMembers}
-                  setModalMembers={setModalMembers}
-                  allUsers={allUsers}
-                  setAllUsers={setAllUsers}
-                  setModalError={setModalError}
-                  fetchGroups={fetchGroups}
-                  currentUser={currentUser}
-                />
-                {isAdmin && (
+                <div className="manage-summary" aria-label={text.manageTitle}>
+                  <div className="manage-summary-item">
+                    <span>{text.members}</span>
+                    <strong>{modalMembers.length}</strong>
+                  </div>
+                  <div className="manage-summary-item">
+                    <span>{isHebrew ? "פגישות במדור" : "Group meetings"}</span>
+                    <strong>{selectedGroup.meetings?.length ?? 0}</strong>
+                  </div>
+                  <div className="manage-summary-item manage-summary-status">
+                    <span>{isHebrew ? "מצב" : "Status"}</span>
+                    <strong>{modalError ? (isHebrew ? "נדרשת תשומת לב" : "Attention needed") : (isHebrew ? "תקין" : "Ready")}</strong>
+                  </div>
+                </div>
+
+                {modalError && <div className="groups-error" role="alert">{modalError}</div>}
+
+                <div className="manage-tabs" role="tablist" aria-label={text.manageTitle}>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={manageTab === "members"}
+                    className={`manage-tab${manageTab === "members" ? " active" : ""}`}
+                    onClick={() => setManageTab("members")}
+                  >
+                    {text.members} ({modalMembers.length})
+                  </button>
+                  <button
+                    type="button"
+                    role="tab"
+                    aria-selected={manageTab === "meetings"}
+                    className={`manage-tab${manageTab === "meetings" ? " active" : ""}`}
+                    onClick={() => setManageTab("meetings")}
+                  >
+                    {isHebrew ? "פגישות" : "Meetings"} ({selectedGroup.meetings?.length ?? 0})
+                  </button>
+                </div>
+
+                {manageTab === "members" ? (
+                  <GroupMembersPanel
+                    language={language}
+                    selectedGroup={selectedGroup}
+                    setSelectedGroup={setSelectedGroup}
+                    modalMembers={modalMembers}
+                    setModalMembers={setModalMembers}
+                    allUsers={allUsers}
+                    setAllUsers={setAllUsers}
+                    setModalError={setModalError}
+                    fetchGroups={fetchGroups}
+                    currentUser={currentUser}
+                  />
+                ) : (
                   <GroupMeetingsPanel
                     language={language}
                     selectedGroup={selectedGroup}
