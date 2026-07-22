@@ -108,7 +108,7 @@ def create_agent_user(
             user.s_id,
             user.role.value,
         )
-        return UserService(session=session).create_agent_user(user_data=user_data)
+        return UserService(session=session).create_agent_user(user_data=user_data, creating_admin=user)
     except Exception as error:
         LoggerManager.get_logger().exception(
             "Failed to create agent user s_id=%s by requester %s:%s role=%s",

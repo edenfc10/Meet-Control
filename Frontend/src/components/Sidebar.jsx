@@ -71,6 +71,12 @@ export default function Sidebar({ language = "en", onToggleLanguage }) {
                 if (currentUser?.role === "admin") {
                   if (item.path === "/audio-meetings") return canAudio;
                   if (item.path === "/video-meetings") return canVideo;
+                  if (item.path === "/blast-dial-meetings") return isSuperAdmin;
+                }
+                if (currentUser?.role === "agent") {
+                  if (item.path === "/audio-meetings") return canAudio;
+                  if (item.path === "/video-meetings") return canVideo;
+                  if (item.path === "/blast-dial-meetings") return false;
                 }
                 return true;
               })

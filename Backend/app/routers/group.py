@@ -16,6 +16,8 @@
 
 from fastapi import APIRouter, Depends, HTTPException
 from app.schema.user import BoolOutput, GroupInCreate, GroupInUpdate, GroupOutput, UserOutput
+from app.models.meeting import GroupMeeting
+from app.service.meetingService import MeetingService
 from app.schema.meeting import MeetingOutput
 from app.core.database import get_db
 from sqlalchemy.orm import Session
@@ -29,8 +31,8 @@ groupRouter = APIRouter()
  # הגדרת רמות הרשאה
 allow_super_admin_only = TokenValidator(allowed_roles=["super_admin"])
 allow_admins_only = TokenValidator(allowed_roles=["admin", "super_admin"])
-validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
 all_members_validator = TokenValidator(allowed_roles=["admin", "super_admin", "agent"])
+only_agents = TokenValidator(allowed_roles=["agent"])
 
 
 # --- POST /groups/create ---
@@ -138,7 +140,7 @@ def get_group_members(group_uuid: str, session: Session = Depends(get_db), user=
 
 
 @groupRouter.get("/{group_uuid}/meetings", status_code=200, response_model=list[MeetingOutput])
-def get_group_meetings(group_uuid: str, session: Session = Depends(get_db), user=Depends(all_members_validator)):
+def get_group_meetings(group_uuid: str, session: Session = Depends(get_db), user=Depends(only_agents)):
     try:
         user_role = str(getattr(user.role, "value", user.role)).lower().strip()
         group_service = GroupService(session=session)
@@ -146,10 +148,6 @@ def get_group_meetings(group_uuid: str, session: Session = Depends(get_db), user
             user_uuid=str(user.UUID), group_uuid=group_uuid
         ):
             raise HTTPException(status_code=403, detail="You are not allowed to view meetings of this group")
-
-        from app.models.meeting import GroupMeeting
-        from app.service.meetingService import MeetingService
-
         meeting_service = MeetingService(session=session)
         output = []
         links = session.query(GroupMeeting).filter(GroupMeeting.group_uuid == group_uuid).all()

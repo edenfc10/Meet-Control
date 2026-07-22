@@ -1138,6 +1138,33 @@ The new architecture is simpler and more aligned with the actual data source (CM
 - Previously, the meeting number was passed as `uri` but not sent to CMS, causing meetings to be created with auto-generated callIds
 - Ensures the meeting number entered by the user is preserved in the CMS
 
+### Agent Permission Inheritance from Admin
+
+`Backend/app/service/userService.py` — `create_agent_user` now accepts a `creating_admin` parameter:
+
+- When an admin creates an agent, the agent inherits the admin's `responsible_access_level`, `can_audio`, and `can_video`
+- Admin video → agent gets `can_video: true`; Admin audio → agent gets `can_audio: true`
+- Super_admin-created agents get no meeting permissions (must be assigned via groups)
+- `Backend/app/routers/user.py` — `POST /users/create-agent` now passes the requesting user as `creating_admin`
+
+### Sidebar — Agent Meeting Type Filtering
+
+`Frontend/src/components/Sidebar.jsx` — Meeting type links now filtered for agents:
+
+- Agents see only `/audio-meetings` and `/video-meetings` based on their `can_audio`/`can_video` flags
+- Previously, agents fell through to `return true` and saw all meeting types
+- Blast-dial is hidden from agents entirely
+
+### Help Page — Comprehensive User Guide
+
+`Frontend/src/pages/Help.jsx` — Replaced placeholder with a full role-based guide:
+
+- **System overview** — explains Meet-Control and CMS integration
+- **Modules** — detailed description of each module (Dashboard, Meetings, Groups, Favorites, Reports, Users, Servers)
+- **Permissions by role** — dynamic section showing the user's role and permitted meeting type, with a detailed list of capabilities
+- **FAQ** — 6 common questions (creating meetings, group assignment, agent creation, admin types, favorites, server failover)
+- Supports Hebrew and English
+
 ---
 
 ## Data Persistence & Backups

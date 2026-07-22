@@ -203,7 +203,7 @@ export default function App() {
                     }
                   />
 
-                  <Route path="/help" element={<Help />} />
+                  <Route path="/help" element={<Help language={language} />} />
                 </Routes>
               </div>
             </div>

@@ -177,17 +177,30 @@ class UserService:
             return "video"
         raise HTTPException(status_code=400, detail="Admin must have a responsible access level")
 
-    def create_agent_user(self, user_data: UserInCreateNoRole) -> UserOutput:
-        """יוצר משתמש סוג agent - הסיסמה מוצפנת לפני שמירה"""
+    def create_agent_user(self, user_data: UserInCreateNoRole, creating_admin: User | None = None) -> UserOutput:
+        """יוצר משתמש סוג agent - הסיסמה מוצפנת לפני שמירה.
+        אם היוצר הוא admin, מוריש ל-agent את הרשאות ה-admin (responsible_access_level, can_audio, can_video).
+        """
         hashed_password = HashHelp.get_password_hash(plain_password=user_data.password)
-        user_data = user_data.model_copy(
-            update={
-                "password": hashed_password,
-                "responsible_access_level": None,
-                "can_audio": False,
-                "can_video": False,
-            }
-        )
+        admin_role = str(getattr(creating_admin.role, "value", creating_admin.role)).lower().strip() if creating_admin else None
+        if creating_admin and admin_role == "admin" and creating_admin.responsible_access_level:
+            user_data = user_data.model_copy(
+                update={
+                    "password": hashed_password,
+                    "responsible_access_level": creating_admin.responsible_access_level,
+                    "can_audio": creating_admin.can_audio,
+                    "can_video": creating_admin.can_video,
+                }
+            )
+        else:
+            user_data = user_data.model_copy(
+                update={
+                    "password": hashed_password,
+                    "responsible_access_level": None,
+                    "can_audio": False,
+                    "can_video": False,
+                }
+            )
         user = self.__userRepository.create_agent_user(user_data=user_data)
         return UserOutput.model_validate(user, from_attributes=True)
 

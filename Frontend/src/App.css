@@ -1144,3 +1144,158 @@
     flex-direction: column;
   }
 }
+
+/* Help Page */
+.help-page {
+  overflow-y: auto;
+  padding-bottom: 20px;
+}
+
+.help-intro {
+  font-size: 0.95rem;
+  line-height: 1.6;
+}
+
+.help-text {
+  margin: 0;
+  font-size: 0.92rem;
+  line-height: 1.6;
+  color: var(--text-700);
+}
+
+.help-card {
+  background: var(--surface-0);
+  border: 1px solid var(--surface-200);
+  border-radius: 14px;
+  padding: 24px 26px;
+  box-shadow: 0 6px 18px rgba(18, 38, 58, 0.05);
+  max-width: 760px;
+}
+
+.help-card-title {
+  margin: 0 0 16px 0;
+  font-size: 1.3rem;
+  font-weight: 650;
+  color: var(--text-800);
+}
+
+.help-section-title {
+  margin: 16px 0 8px 0;
+  font-size: 1.05rem;
+  font-weight: 600;
+  color: var(--text-700);
+}
+
+.help-role-info {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.help-role-badge {
+  display: inline-block;
+  font-size: 0.85rem;
+  color: var(--text-600);
+  background: var(--surface-100);
+  border-radius: 8px;
+  padding: 4px 10px;
+}
+
+.help-modules {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.help-module {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  padding: 12px 14px;
+  background: var(--surface-50);
+  border-radius: 10px;
+  border: 1px solid var(--surface-100);
+}
+
+.help-module-name {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-800);
+}
+
+.help-module-desc {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-600);
+}
+
+.help-list {
+  list-style: none;
+  padding: 0;
+  margin: 12px 0 0 0;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.help-list-item {
+  position: relative;
+  padding-left: 22px;
+  font-size: 0.92rem;
+  line-height: 1.5;
+  color: var(--text-700);
+}
+
+.help-list-item::before {
+  content: "";
+  position: absolute;
+  left: 4px;
+  top: 9px;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--primary-500, #3b82f6);
+}
+
+[dir="rtl"] .help-list-item {
+  padding-left: 0;
+  padding-right: 22px;
+}
+
+[dir="rtl"] .help-list-item::before {
+  left: auto;
+  right: 4px;
+}
+
+.help-faq {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.help-faq-item {
+  padding: 14px 16px;
+  background: var(--surface-50);
+  border-radius: 10px;
+  border: 1px solid var(--surface-100);
+}
+
+.help-faq-q {
+  font-weight: 600;
+  font-size: 0.95rem;
+  color: var(--text-800);
+  margin-bottom: 6px;
+}
+
+.help-faq-a {
+  font-size: 0.88rem;
+  line-height: 1.5;
+  color: var(--text-600);
+}
+
+.help-contact {
+  margin-top: 8px;
+  font-size: 0.9rem;
+  color: var(--text-500);
+}
